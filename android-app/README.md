@@ -16,7 +16,7 @@ The app does not browse the live web. Use the Colab notebook in `../colab/` for 
 
 ## Install the test APK on a Samsung A55
 
-The Samsung A55 is supported. The app requires Android 8.0 or newer and targets Android 16.
+The Samsung A55 is supported. The app requires Android 8.0 or newer and targets Android 17.
 
 1. Download `app-debug.apk` from the successful **Android** GitHub Actions run, or build it with the command below.
 2. Open the APK from Chrome or My Files.
@@ -35,7 +35,7 @@ Keys are never compiled into the app or placed in URLs. Requests go directly fro
 
 ## Build and verify
 
-Requirements: JDK 17 and Android SDK Platform 36 with Build Tools 36.0.0.
+Requirements: JDK 17 and Android SDK Platform 37.0 with Build Tools 36.0.0.
 
 ```bash
 cd android-app

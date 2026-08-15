@@ -19,7 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -102,7 +102,7 @@ fun ChatScreen(
                         enabled = state.messages.isNotEmpty() && !state.isLoading,
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.DeleteSweep,
+                            imageVector = Icons.Outlined.Delete,
                             contentDescription = stringResource(R.string.clear_chat),
                         )
                     }

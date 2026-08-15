@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <lint>
-    <!-- Compose 1.12 requires API 37/AGP 9.1. Keep the stable API-36-compatible line. -->
-    <issue id="GradleDependency">
-        <ignore regexp="androidx\.compose:compose-bom" />
-    </issue>
     <!-- AAPT requires adaptive-icon XML in a v26 resource directory. -->
     <issue id="ObsoleteSdkInt">
         <ignore path="src/main/res/mipmap-anydpi-v26" />
