@@ -28,7 +28,7 @@ class ApiClientsTest {
         assertEquals("Bearer secret-key", transport.lastRequest!!.headers["Authorization"])
         assertFalse(transport.lastRequest!!.url.contains("secret-key"))
         val json = JSONObject(transport.lastRequest!!.body)
-        assertEquals("llama-3.3-70b-versatile", json.getString("model"))
+        assertEquals("openai/gpt-oss-120b", json.getString("model"))
         assertEquals("system", json.getJSONArray("messages").getJSONObject(0).getString("role"))
         val toolNames = json.getJSONArray("tools").let { tools ->
             (0 until tools.length()).map {
@@ -81,6 +81,7 @@ class ApiClientsTest {
         assertEquals("Hello from Gemini", result)
         assertEquals("secret-key", transport.lastRequest!!.headers["x-goog-api-key"])
         assertFalse(transport.lastRequest!!.url.contains("secret-key"))
+        assertTrue(transport.lastRequest!!.url.contains("gemini-3.6-flash"))
         val json = JSONObject(transport.lastRequest!!.body)
         assertTrue(json.has("systemInstruction"))
         assertEquals("user", json.getJSONArray("contents").getJSONObject(0).getString("role"))
