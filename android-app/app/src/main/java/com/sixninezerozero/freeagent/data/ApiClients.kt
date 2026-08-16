@@ -11,11 +11,11 @@ import org.json.JSONException
 import org.json.JSONObject
 
 private const val GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
-private const val GROQ_MODEL = "llama-3.3-70b-versatile"
+private const val GROQ_MODEL = "openai/gpt-oss-120b"
 private const val MAX_TOOL_ROUNDS = 4
 private const val MAX_TOOL_CALLS_PER_ROUND = 4
 private const val GEMINI_ENDPOINT =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
 
 class GroqClient(
     private val transport: HttpTransport,
