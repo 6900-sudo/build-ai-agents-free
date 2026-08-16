@@ -4,8 +4,8 @@ A native Android app for the `build-ai-agents-free` project. It runs directly on
 
 ## What it does
 
-- Chats through Groq's `llama-3.3-70b-versatile` model.
-- Falls back to Google's `gemini-2.5-flash` when enabled and configured.
+- Chats through Groq's `openai/gpt-oss-120b` model.
+- Falls back to Google's `gemini-3.6-flash` when enabled and configured.
 - Runs a bounded agent loop with three allow-listed on-device tools: safe arithmetic, word count, and current device date/time.
 - Keeps up to 200 recent messages within a 500,000-character encrypted storage budget.
 - Encrypts API keys, settings and history with an Android Keystore AES-256-GCM key.
