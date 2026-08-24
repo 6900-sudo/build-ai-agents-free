@@ -1,6 +1,6 @@
 [versions]
 agp = "9.1.1"
-kotlin = "2.4.10"
+kotlin = "2.0.10"
 compose-bom = "2026.08.00"
 activity-compose = "1.13.0"
 lifecycle = "2.9.4"
