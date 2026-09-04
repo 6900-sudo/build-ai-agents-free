@@ -1,6 +1,27 @@
+# Free-tier LLM providers
 langchain
 langchain-groq
 langchain-google-genai
 langchain-community
+langchain-anthropic
 duckduckgo-search
 python-dotenv
+
+# LangGraph multi-agent orchestration
+langgraph
+langgraph-checkpoint-sqlite
+
+# FastAPI web server
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
+requests
+
+# YouTube publishing (from studio)
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+
+# Image / video rendering (from studio)
+Pillow
