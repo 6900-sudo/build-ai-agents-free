@@ -59,7 +59,8 @@ A week-by-week plan for the **recommended pathway**: an audience-and-affiliate f
 **Goal: put the money-making pieces in place so traffic can convert — without waiting for scale.**
 
 ### Affiliate (no inventory, no fulfillment)
-- [ ] Apply to the **high-ticket, long-cookie affiliate programs**: 4Patriots (~10–15%, up to $50–450/sale), ReadyWise (10%, 120-day cookie), 1800Prepare (10%, 120-day), LifeStraw (via Impact). Also Amazon Associates for breadth.
+- [ ] Apply to the **high-ticket, long-cookie affiliate programs**: ReadyWise (10%, 120-day cookie), 1800Prepare (10%, 120-day), LifeStraw (via Impact). Also Amazon Associates for breadth.
+- [ ] **4Patriots affiliate** — runs on the **Awin** network, **30-day cookie**. The **commission rate is not published and is negotiable** per partner (secondary listicles quote ~10–15% / up to $50–450 per sale, but that is unverified — confirm your actual rate inside Awin after approval). High AOV (~$232 avg, generators in the hundreds) makes even a modest % worthwhile. Apply via the 4Patriots affiliate page / Awin. _(Sources: [linkclicky](https://linkclicky.com/affiliate-program/4patriots/), [shopday](https://www.shopday.com/4patriots))_
 - [ ] Add **honest affiliate recommendations** into your best articles and video descriptions — "the gear I'd actually buy" lists. Disclose affiliate links (FTC + ASA require it).
 - [ ] Feature the **closed flagship brands** (Jackery, EcoFlow, LifeStraw) via affiliate for credibility — you earn on the recommendation without needing a dealer account.
 
