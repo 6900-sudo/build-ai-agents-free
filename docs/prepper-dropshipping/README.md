@@ -1,8 +1,8 @@
-# Ready Ground — Prepper Dropshipping: Everything In One Place
+# GearUp — Prepper Dropshipping: Everything In One Place
 
-This file collects everything produced for the prepper / emergency-preparedness dropshipping project (brand: **Ready Ground**). It pulls together the Claude sessions, published artifacts, repos and supplier email threads from July to September 2026.
+This file collects everything produced for the prepper / emergency-preparedness dropshipping project (brand: **GearUp**). It pulls together the Claude sessions, published artifacts, repos and supplier email threads from July to September 2026.
 
-_Last compiled: 23 Sep 2026_
+_Last compiled: 27 Sep 2026 (brand renamed from Ready Ground to GearUp to avoid Etsy shop collision)_
 
 ---
 
@@ -10,7 +10,7 @@ _Last compiled: 23 Sep 2026_
 
 | | |
 |---|---|
-| **Business** | Ready Ground: a UK-based preparedness content site plus dropship store, selling worldwide (the US is the biggest market) |
+| **Business** | GearUp: a UK-based preparedness content site plus dropship store, selling worldwide (the US is the biggest market). Positioning: "From disasters to camping and all in-between." |
 | **Categories** | Water storage, food storage, first aid, off-grid power, bug-out bags, home security |
 | **Recommended start** | Direction A, "Narrow & Safe": one non-restricted sub-niche (water filtration or get-home bag), pure dropship, standard payment processor, growth led by SEO and content |
 | **Content engine** | Blackout Ready: a free 72-hour checklist as the lead magnet, a £5–9 paid guide, and 5 faceless video scripts |
@@ -24,7 +24,7 @@ _Last compiled: 23 Sep 2026_
 ### Published artifacts (private, claude.ai)
 | Asset | Link | Status |
 |---|---|---|
-| **Ready Ground HQ** (the hub that links everything below) | https://claude.ai/code/artifact/1e75a11e-3e11-4c65-8081-b75ab0aff8bf | Live |
+| **GearUp HQ** (the hub that links everything below) | https://claude.ai/code/artifact/1e75a11e-3e11-4c65-8081-b75ab0aff8bf | Live |
 | **Prepper Commerce: Market Deep-Dive & Dropshipping Roadmap** (15 sections, cited sources) | https://claude.ai/code/artifact/6fa89145-2f74-4fd4-8d5e-51425c852f2e | Live |
 | **Blackout Ready: Week 1 Content Kit** (checklist, paid guide, 5 scripts) | https://claude.ai/code/artifact/7127873d-cd45-4668-a62e-627d41dd873b | Live |
 
@@ -33,7 +33,7 @@ _Last compiled: 23 Sep 2026_
 |---|---|---|
 | Prepper website dropshipping explainer (`session_01Ce16LBFMQrDBX4mHxhHfnm`, repo `6900-sudo/gstack`) | Jul–Aug 2026 | Produced the market deep-dive, the Blackout Ready kit and the Remotion explainer source. **Stalled on a question about pushing.** Branch `claude/prepper-dropshipping-video-ldt9q3` was never pushed; only the README reached `gstack/main` at `prepper-dropshipping-video/README.md`. |
 | Bunker essentials explainer video (`session_01JXqWonh6UBGTtcwiG82wBc`, repo `6900-sudo/social-media-skills`) | 25 Jul 2026 | Bunker-essentials video delivered, with a Remotion preview. PR #2 merged. |
-| Ready Ground dropshipping site (`session_01EajB12A2xHmBTKco4N5UQK`, repo `6900-sudo/Open-Generative-AI`) | 11 Sep 2026 | Built the Ready Ground HQ hub. Ended "awaiting business setup". |
+| GearUp dropshipping site (`session_01EajB12A2xHmBTKco4N5UQK`, repo `6900-sudo/Open-Generative-AI`) | 11 Sep 2026 | Built the GearUp HQ hub. Ended "awaiting business setup". |
 | Supplier outreach | 6–31 Aug 2026 | Request-for-information (RFI) emails and follow-ups sent from Gmail (section 5). |
 
 ---

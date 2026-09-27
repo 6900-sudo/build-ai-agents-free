@@ -1,4 +1,4 @@
-# Ready Ground — 90-Day Launch Checklist
+# GearUp — 90-Day Launch Checklist
 
 A week-by-week plan for the **recommended pathway**: an audience-and-affiliate flywheel in a named sub-niche — content (video-first) → email list → affiliate commissions + your own digital products. This is the path the [viability report](./viability-and-earnings-2026.md) recommends over physical dropshipping.
 
@@ -15,7 +15,7 @@ A week-by-week plan for the **recommended pathway**: an audience-and-affiliate f
 **Goal: decide who you're for, and set up the plumbing so you never touch it again.**
 
 ### Strategy
-- [ ] **Pick ONE sub-niche and commit.** Choose from: urban/apartment preparedness · family-with-kids prep · medical-continuity prep (chronic conditions) · UK/EU home-resilience (72-hour-kit angle). Write a one-line positioning statement: *"Ready Ground helps [who] get [outcome] without [pain]."*
+- [ ] **Pick ONE sub-niche and commit.** Choose from: urban/apartment preparedness · family-with-kids prep · medical-continuity prep (chronic conditions) · UK/EU home-resilience (72-hour-kit angle). Write a one-line positioning statement: *"GearUp helps [who] get [outcome] without [pain]."*
 - [ ] Define your **audience avatar** — one specific person (age, living situation, what worries them, what they've already tried).
 - [ ] List **10 content pillars** (recurring topics) the niche cares about. These become your video/article backlog.
 
