@@ -84,6 +84,31 @@ export async function layoutStats(project, spec = {}, step = 3) {
   return { ...prep.renderer.stats, duration: prep.timeline.duration, scenes: prep.timeline.items.length, words: prep.parsed.wordCount };
 }
 
+/** Before encoding: hashes the logo's interior pixels and records its box for each script at several times. */
+export async function logoCheck(project, scripts, times = [0.5, 1.0, 2.0]) {
+  const eng = await engine();
+  const logo = await logoBlob();
+  const [W, H] = eng.frameSize(project);
+  const canvas = new OffscreenCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  const out = [];
+  for (const script of scripts) {
+    const prep = await eng.prepareProject({ ...project, script }, { logoBlob: logo });
+    for (const t of times) {
+      prep.renderer.draw(ctx, t);
+      const b = prep.renderer.stats.logoBox;
+      const d = ctx.getImageData(b.x + 1, b.y + 1, b.w - 2, b.h - 2).data;
+      let h = 2166136261;
+      for (let k = 0; k < d.length; k++) {
+        h ^= d[k];
+        h = Math.imul(h, 16777619);
+      }
+      out.push({ t, box: `${b.x},${b.y},${b.w}x${b.h}`, hash: h >>> 0 });
+    }
+  }
+  return out;
+}
+
 function lum(r, g, b) {
   const f = (c) => ((c /= 255) <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);

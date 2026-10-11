@@ -242,14 +242,16 @@ export class Renderer {
     const right = pos.endsWith('right');
     const bottom = pos.startsWith('bottom');
     ctx.save();
-    ctx.globalAlpha = 0.9;
-    let x = right ? W - margin : margin;
-    let y = bottom ? H - margin : margin + (this.p.progressBar ? unit * 0.02 : 0);
+    // Fully opaque and on whole pixels so a brand logo renders identically over any background.
+    let x = Math.round(right ? W - margin : margin);
+    let y = Math.round(bottom ? H - margin : margin + (this.p.progressBar ? unit * 0.02 : 0));
     if (this.logo) {
       const s = unit * 0.11;
       const k = s / Math.max(this.logo.width, this.logo.height);
-      const w = this.logo.width * k, h = this.logo.height * k;
-      ctx.drawImage(this.logo, right ? x - w : x, bottom ? y - h : y, w, h);
+      const w = Math.round(this.logo.width * k), h = Math.round(this.logo.height * k);
+      const lx = right ? x - w : x, ly = bottom ? y - h : y;
+      ctx.drawImage(this.logo, lx, ly, w, h);
+      this.stats.logoBox = { x: lx, y: ly, w, h };
       y = bottom ? y - h - unit * 0.01 : y + h + unit * 0.01;
     }
     if (brand.handle && brand.watermarkHandle !== false) {

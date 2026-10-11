@@ -66,6 +66,11 @@ function psnr(a, b, extra = []) {
   const m = /average:(inf|[\d.]+)/.exec(out);
   return m ? (m[1] === 'inf' ? Infinity : +m[1]) : null;
 }
+function ssim(a, b) {
+  const out = ff(['-i', a, '-i', b, '-lavfi', 'ssim', '-f', 'null', '-']).stderr;
+  const m = /All:([\d.]+)/.exec(out);
+  return m ? +m[1] : 0;
+}
 function frameAt(file, t, out, crop) {
   const vf = crop ? ['-vf', `crop=${crop}`] : ['-vf', 'scale=360:-2'];
   ff(['-v', 'error', '-y', '-ss', String(t), '-i', file, '-frames:v', '1', ...vf, out]);
@@ -201,14 +206,26 @@ test('Consistency', 'Free AI voice gives the same timing every time', 'Rendered 
   return `Both runs: ${a.duration.toFixed(2)} s with identical word timing (first run ${Math.round(a.renderMs / 1000)} s incl. voice model load).`;
 });
 
-test('Consistency', 'Brand kit looks identical across a 20-video batch', 'Used the app like a customer: 20 scripts in batch mode with a logo and brand colours, then compared the logo area in every video.', async () => {
+test('Consistency', 'Brand kit looks identical across a 20-video batch', 'Checked the logo before encoding (pixel-exact), then used the app like a customer (20 scripts in batch mode with a logo) and compared the logo in every encoded video, including a position check.', async () => {
+  const scripts = Array.from({ length: 20 }, (_, i) => `Tip number ${i + 1}. Small habits build big results. Keep going!`);
+  const project = { ...P({}), progressBar: false, voice: { type: 'none', wpm: 160 }, brand: { ...BASE_PROJECT.brand, handle: '@brandcheck' } };
+
+  // 1. Before encoding: the logo interior must be pixel-identical in every video, at every sampled time.
+  const { page: ep } = await enginePage();
+  const pre = await ep.evaluate(([p, s]) => window.h.logoCheck(p, s), [project, scripts]);
+  const boxes = new Set(pre.map((r) => r.box)), hashes = new Set(pre.map((r) => r.hash));
+  check(boxes.size === 1, `logo position/size varied before encoding: ${[...boxes].join(' | ')}`);
+  check(hashes.size === 1, `logo pixels varied before encoding (${hashes.size} different versions across ${pre.length} frames)`);
+  const [bx, by, bwh] = [...boxes][0].split(',');
+  const [bw, bh] = bwh.split('x').map(Number);
+
+  // 2. Through the app UI: 20-video batch, encoded.
   const { page } = await appPage();
-  const scripts = Array.from({ length: 20 }, (_, i) => `Tip number ${i + 1}. Small habits build big results. Keep going!`).join('\n===\n');
   await page.evaluate(async () => {
     const h = await import('/__test/helpers.js');
     await window.__fs.setLogo(await h.logoBlob());
   });
-  await setScript(page, scripts);
+  await setScript(page, scripts.join('\n===\n'));
   await page.check('#batchMode');
   await page.click('[data-tab=voice]');
   await page.check('input[name=voiceType][value=none]');
@@ -220,24 +237,50 @@ test('Consistency', 'Brand kit looks identical across a 20-video batch', 'Used t
   await waitRenderDone(page);
   const res = await uploadResults(page, 'batch20');
   check(res.length === 20, `expected 20 videos, got ${res.length}`);
-  const crops = res.map((r, i) => frameAt(path.join(SAMPLES, r.name), 1.0, path.join(SAMPLES, `batch20-logo-${i + 1}.png`), '70:70:613:37'));
-  const ps = crops.slice(1).map((c) => psnr(crops[0], c));
-  const minP = Math.min(...ps);
   const sizes = new Set(res.map((r) => `${r.width}x${r.height}`));
   check(sizes.size === 1, 'videos had different sizes');
-  check(minP >= 35, `logo area differed between videos (worst ${minP.toFixed(1)} dB)`);
+
+  // Crops of compressed (YUV 4:2:0) video must start on even pixels, or ffmpeg silently shifts them by 1 px.
+  const even = (v) => Math.ceil(v / 2) * 2;
+  const cx = even(+bx + 2), cy = even(+by + 2), cw = Math.floor((bw - 4 - (cx - +bx - 2)) / 2) * 2, ch = Math.floor((bh - 4 - (cy - +by - 2)) / 2) * 2;
+  const crop = (x, y) => `${cw}:${ch}:${x}:${y}`;
+  const files = res.map((r) => path.join(SAMPLES, r.name));
+  const ref = frameAt(files[0], 1.0, path.join(SAMPLES, 'batch20-logo-ref.png'), crop(cx, cy));
+  let worstSsim = 1, worstPsnr = Infinity, misplaced = [];
+  for (let i = 1; i < files.length; i++) {
+    const c0 = frameAt(files[i], 1.0, path.join(SAMPLES, `batch20-logo-${i + 1}.png`), crop(cx, cy));
+    worstSsim = Math.min(worstSsim, ssim(ref, c0));
+    worstPsnr = Math.min(worstPsnr, psnr(ref, c0));
+    // Position check: the best match must be at zero offset, not shifted by 2 px in any direction.
+    const p0 = psnr(ref, c0);
+    for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) {
+      const shifted = frameAt(files[i], 1.0, path.join(SAMPLES, 'batch20-shift.png'), crop(cx + dx, cy + dy));
+      if (psnr(ref, shifted) >= p0) misplaced.push(`video ${i + 1} (${dx},${dy})`);
+    }
+  }
+  // Tolerance for lossy video compression only (logo is pixel-identical before encoding, checked above).
+  check(!misplaced.length, 'logo position shifted in: ' + misplaced.join(', '));
+  check(worstSsim >= 0.97, `encoded logo similarity too low (SSIM ${worstSsim.toFixed(3)}, need ≥ 0.970)`);
+
+  // Contact sheet for human review: wide crops (logo + margin) of the first 10 videos, magnified 3x.
+  const wide = `${even(bw + 24)}:${even(bh + 24)}:${even(+bx - 12)}:${even(+by - 12)}`;
+  const sheets = files.slice(0, 10).map((f, i) => {
+    const out = path.join(SAMPLES, `sheet-${i}.png`);
+    ff(['-v', 'error', '-y', '-ss', '1.0', '-i', f, '-frames:v', '1', '-vf', `crop=${wide},scale=iw*3:ih*3:flags=neighbor`, out]);
+    return out;
+  });
+  ff(['-v', 'error', '-y', ...sheets.flatMap((s) => ['-i', s]), '-filter_complex', `hstack=${sheets.length}`, path.join(SAMPLES, 'logo-contact-sheet.png')]);
+
   const zipBtn = await page.$('text=Download all 20 videos (.zip)');
   check(!!zipBtn, 'zip download button missing');
   const dl = page.waitForEvent('download');
   await zipBtn.click();
-  const zip = await dl;
   const zipPath = path.join(SAMPLES, 'batch20.zip');
-  await zip.saveAs(zipPath);
+  await (await dl).saveAs(zipPath);
   const zipSize = fs.statSync(zipPath).size;
-  res.slice(1).forEach((r) => fs.rmSync(path.join(SAMPLES, r.name)));
-  crops.forEach((c) => fs.rmSync(c));
-  fs.rmSync(zipPath);
-  return `20/20 videos made. Logo identical in all (worst match ${minP === Infinity ? 'pixel-perfect' : minP.toFixed(1) + ' dB'}). Same size (${[...sizes][0]}). "Download all" zip worked (${(zipSize / 1e6).toFixed(1)} MB).`;
+  for (const f of [...files.slice(1), zipPath, ...sheets, path.join(SAMPLES, 'batch20-shift.png')]) fs.rmSync(f, { force: true });
+  for (let i = 1; i < files.length; i++) fs.rmSync(path.join(SAMPLES, `batch20-logo-${i + 1}.png`), { force: true });
+  return `Before encoding: logo pixel-identical in all ${pre.length} sampled frames across 20 videos (same box ${bx},${by} ${bw}×${bh}). After encoding (20 videos via the app): no position shifts; worst similarity SSIM ${worstSsim.toFixed(3)} / PSNR ${worstPsnr === Infinity ? '∞' : worstPsnr.toFixed(1) + ' dB'} (compression only). Contact sheet: samples/logo-contact-sheet.png. Zip download worked (${(zipSize / 1e6).toFixed(1)} MB).`;
 }, { slow: true });
 
 test('Consistency', 'Exports play on TikTok, Instagram and YouTube', 'Checked the MP4 export against the formats those platforms accept, for all three video shapes.', async () => {
