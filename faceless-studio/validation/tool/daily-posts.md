@@ -112,7 +112,7 @@ Post what people are thinking about right now. Link in bio.
 ```
 
 ### D10: Captions matter
-<!-- voice: bf_emma, template: facts, mood: upbeat, caption: boxed -->
+<!-- voice: bf_emma, template: story, mood: upbeat, caption: boxed -->
 ```text
 Most people watch short videos with the sound off.
 
@@ -158,7 +158,7 @@ Link in bio.
 ```
 
 ### D14: Use your brand colours
-<!-- voice: bf_emma, template: facts, mood: corporate, caption: bold-pop -->
+<!-- voice: bf_emma, template: story, mood: corporate, caption: bold-pop -->
 ```text
 Using the same colours, logo and style on every video helps people recognise you.
 
@@ -216,7 +216,7 @@ Link in bio.
 ```
 
 ### D19: Watch this with the sound off
-<!-- voice: none, template: facts, mood: lofi, caption: one-word -->
+<!-- voice: none, template: story, mood: lofi, caption: one-word -->
 ```text
 Watch this with the sound off. You can still follow every word. That is the power of captions. Link in bio.
 ```

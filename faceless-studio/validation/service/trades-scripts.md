@@ -92,7 +92,7 @@ A good roofer will be happy to answer all three in writing.
 ## Plumbing and heating
 
 ### P1: Bleed your radiators ⭐
-<!-- voice: bm_george, template: facts, mood: lofi, caption: boxed -->
+<!-- voice: bm_george, template: story, mood: lofi, caption: boxed -->
 ```text
 Radiators cold at the top but warm at the bottom? That usually means trapped air.
 
@@ -170,7 +170,7 @@ If the whole house has low pressure, it is time to call a plumber.
 ## Electrical
 
 ### E1: What is an EICR? ⭐
-<!-- voice: bm_george, template: facts, mood: corporate, caption: boxed -->
+<!-- voice: bm_george, template: story, mood: corporate, caption: boxed -->
 ```text
 What is an EICR?
 
@@ -258,7 +258,7 @@ That is why it pays to get the cause properly diagnosed before you spend money o
 ```
 
 ### B3: Repointing brickwork ⭐
-<!-- voice: bm_george, template: facts, mood: corporate, caption: bold-pop -->
+<!-- voice: bm_george, template: story, mood: corporate, caption: bold-pop -->
 ```text
 Crumbling mortar between your bricks?
 
