@@ -216,7 +216,7 @@ Link in bio.
 ```
 
 ### D19: Watch this with the sound off
-<!-- voice: none, template: story, mood: lofi, caption: one-word -->
+<!-- voice: none, template: story, mood: lofi, volume: 1, caption: one-word -->
 ```text
 Watch this with the sound off. You can still follow every word. That is the power of captions. Link in bio.
 ```
