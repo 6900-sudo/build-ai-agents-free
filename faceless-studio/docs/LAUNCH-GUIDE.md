@@ -2,11 +2,13 @@
 
 This guide gets Faceless Studio online, connected to payments, and ready to sell. Every step is clicking and copy-pasting. Expect about an hour the first time.
 
-**What it costs:** $0 to start. Vercel hosting is free, and Lemon Squeezy has no monthly fee (they take a cut of each sale). You don't need a domain name. Your site gets a free `something.vercel.app` address.
+**What it costs:** Lemon Squeezy has no monthly fee (they take a cut of each sale), and you don't need a domain name. **Hosting is not free for selling:** Vercel's free Hobby plan is "restricted to non-commercial personal use only", so selling the app, or using it for paid client work, needs a plan that allows commercial use, such as Vercel Pro (check the current price). For free options and their limits, see [`../validation/tool/HOSTING.md`](../validation/tool/HOSTING.md).
 
 ---
 
-## Part 1 — Put the app online (Vercel, free)
+## Part 1 — Put the app online (Vercel)
+
+> ⚠️ The steps below work on Vercel's free Hobby plan for **trying the app out personally**. Before you sell it, take payments through it, or use it for paid client work, upgrade the project to a plan that allows commercial use (see `HOSTING.md`).
 
 1. Go to **vercel.com** and click **Sign Up** → **Continue with GitHub**. Use the same GitHub account that holds this project.
 2. Click **Add New… → Project**.
