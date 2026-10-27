@@ -35,7 +35,7 @@ class VideoDeviceTest {
     fun makesCaptionOnlyMp4() = makeAndCheck(VideoVoice.NONE, timeoutMinutes = 8)
 
     @Test
-    fun makesMp4WithFreeVoice() = makeAndCheck(VideoVoice.UK_MALE, timeoutMinutes = 25)
+    fun makesMp4WithFreeVoice() = makeAndCheck(VideoVoice.UK_MALE, timeoutMinutes = 15)
 
     private fun makeAndCheck(voice: VideoVoice, timeoutMinutes: Long) = runBlocking {
         val request = VideoRequest(script = SCRIPT, voice = voice, mood = VideoMood.CALM, quality = "720")

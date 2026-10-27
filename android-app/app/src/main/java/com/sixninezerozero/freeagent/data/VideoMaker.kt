@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
+import android.util.Log
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
@@ -112,6 +113,10 @@ class VideoMaker(context: Context) {
             webViewClient = EngineClient(loader, current)
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                    // Engine errors and warnings go to the Android log for diagnosis.
+                    if (message.messageLevel() != ConsoleMessage.MessageLevel.LOG) {
+                        Log.w("VideoEngine", "${message.messageLevel()}: ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                    }
                     if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
                         current.lastConsoleError = message.message()
                     }

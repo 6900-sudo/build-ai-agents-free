@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.sixninezerozero.freeagent.data.AppRepository
@@ -90,7 +91,7 @@ class ChatToVideoTest {
         compose.onAllNodesWithTag("makeVideo").onFirst().performClick()
         compose.onNodeWithTag("videoScript")
             .assertTextContains("Blocked gutters are cheap to fix", substring = true)
-        compose.onNodeWithTag("createMp4").performClick()
+        compose.onNodeWithTag("createMp4").performScrollTo().performClick()
         compose.waitUntil(10_000) { made.isNotEmpty() }
 
         assertEquals(
