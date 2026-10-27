@@ -8,6 +8,7 @@ import com.sixninezerozero.freeagent.data.AppRepository
 import com.sixninezerozero.freeagent.data.GeminiClient
 import com.sixninezerozero.freeagent.data.GroqClient
 import com.sixninezerozero.freeagent.data.HttpKeyChecker
+import com.sixninezerozero.freeagent.data.PhoneVideoService
 import com.sixninezerozero.freeagent.data.SecureStore
 import com.sixninezerozero.freeagent.data.UrlConnectionTransport
 import com.sixninezerozero.freeagent.domain.AiCoordinator
@@ -21,6 +22,12 @@ import com.sixninezerozero.freeagent.domain.ConversationPolicy
 import com.sixninezerozero.freeagent.domain.KeySetup
 import com.sixninezerozero.freeagent.domain.KeySetupResult
 import com.sixninezerozero.freeagent.domain.MessageRole
+import com.sixninezerozero.freeagent.domain.VideoMood
+import com.sixninezerozero.freeagent.domain.VideoRequest
+import com.sixninezerozero.freeagent.domain.VideoScript
+import com.sixninezerozero.freeagent.domain.VideoService
+import com.sixninezerozero.freeagent.domain.VideoUiState
+import com.sixninezerozero.freeagent.domain.VideoVoice
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +40,7 @@ class FreeAgentViewModel(
     private val repository: AppRepository,
     private val coordinator: AiCoordinator,
     private val keySetup: KeySetup,
+    private val videoService: VideoService,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -228,6 +236,82 @@ class FreeAgentViewModel(
         }
     }
 
+    /** Opens the video screen with the words from an assistant reply (or empty). */
+    fun openVideo(messageId: String? = null) {
+        if (_state.value.video.isMaking) {
+            _state.update { it.copy(screen = AppScreen.Video) }
+            return
+        }
+        val reply = _state.value.messages.firstOrNull { it.id == messageId }?.content.orEmpty()
+        _state.update {
+            it.copy(
+                screen = AppScreen.Video,
+                video = it.video.copy(
+                    script = VideoScript.fromReply(reply),
+                    error = null,
+                    result = null,
+                    progress = null,
+                ),
+            )
+        }
+    }
+
+    fun closeVideo() {
+        _state.update { it.copy(screen = AppScreen.Chat) }
+    }
+
+    fun updateVideoScript(script: String) {
+        _state.update { it.copy(video = it.video.copy(script = script, error = null)) }
+    }
+
+    fun setVideoVoice(voice: VideoVoice) {
+        _state.update { it.copy(video = it.video.copy(voice = voice)) }
+    }
+
+    fun setVideoMood(mood: VideoMood) {
+        _state.update { it.copy(video = it.video.copy(mood = mood)) }
+    }
+
+    fun makeVideo() {
+        val video = _state.value.video
+        if (video.isMaking) return
+        VideoScript.problem(video.script)?.let { problem ->
+            _state.update { it.copy(video = it.video.copy(error = problem)) }
+            return
+        }
+        _state.update {
+            it.copy(video = it.video.copy(isMaking = true, error = null, result = null, progress = null))
+        }
+        viewModelScope.launch {
+            val request = VideoRequest(script = video.script.trim(), voice = video.voice, mood = video.mood)
+            try {
+                val outcome = videoService.makeAndSave(request) { progress ->
+                    _state.update { it.copy(video = it.video.copy(progress = progress)) }
+                }
+                _state.update {
+                    it.copy(video = it.video.copy(isMaking = false, progress = null, result = outcome))
+                }
+            } catch (cancelled: CancellationException) {
+                _state.update { it.copy(video = it.video.copy(isMaking = false, progress = null)) }
+                throw cancelled
+            } catch (error: Exception) {
+                _state.update {
+                    it.copy(
+                        video = it.video.copy(
+                            isMaking = false,
+                            progress = null,
+                            error = "The video couldn't be made: ${error.message ?: error::class.simpleName}",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearVideoResult() {
+        _state.update { it.copy(video = VideoUiState(voice = it.video.voice, mood = it.video.mood)) }
+    }
+
     fun dismissError() {
         _state.update { it.copy(errorMessage = null) }
     }
@@ -307,6 +391,7 @@ class FreeAgentViewModel(
                             geminiClient = GeminiClient(transport),
                         ),
                         keySetup = KeySetup(HttpKeyChecker(transport)),
+                        videoService = PhoneVideoService(context.applicationContext),
                     ) as T
                 }
             }

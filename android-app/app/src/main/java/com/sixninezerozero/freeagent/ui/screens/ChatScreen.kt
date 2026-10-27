@@ -47,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -69,6 +70,7 @@ fun ChatScreen(
     onDismissError: () -> Unit,
     onDismissFallbackNotice: () -> Unit,
     onDismissSetupNotice: () -> Unit,
+    onMakeVideo: (String) -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val retryLabel = stringResource(R.string.retry)
@@ -136,6 +138,7 @@ fun ChatScreen(
         Conversation(
             messages = state.messages,
             isLoading = state.isLoading,
+            onMakeVideo = onMakeVideo,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -170,6 +173,7 @@ fun ChatScreen(
 private fun Conversation(
     messages: List<ChatMessage>,
     isLoading: Boolean,
+    onMakeVideo: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (messages.isEmpty() && !isLoading) {
@@ -204,7 +208,7 @@ private fun Conversation(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(items = messages, key = ChatMessage::id) { message ->
-            MessageBubble(message)
+            MessageBubble(message, onMakeVideo)
         }
         if (isLoading) {
             item(key = "loading") { ThinkingBubble() }
@@ -213,7 +217,7 @@ private fun Conversation(
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(message: ChatMessage, onMakeVideo: (String) -> Unit) {
     val isUser = message.role == MessageRole.USER
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -260,6 +264,14 @@ private fun MessageBubble(message: ChatMessage) {
                         text = message.content,
                         style = MaterialTheme.typography.bodyLarge,
                     )
+                }
+                if (!isUser) {
+                    TextButton(
+                        onClick = { onMakeVideo(message.id) },
+                        modifier = Modifier.testTag("makeVideo"),
+                    ) {
+                        Text(stringResource(R.string.make_video))
+                    }
                 }
             }
         }

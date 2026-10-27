@@ -72,7 +72,7 @@ jobs:
   device-test:
     name: Device test (emulator)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
 
     steps:
       - name: Check out repository
@@ -101,16 +101,19 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run device tests (real Android Keystore)
+      - name: Run device tests (Keystore and real video making)
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 34
           target: google_apis
           arch: x86_64
           disable-animations: true
+          ram-size: 4096M
+          disk-size: 6000M
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
           working-directory: android-app
-          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+          # One line so the videos and log are collected even when a test fails.
+          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace; status=$?; mkdir -p build/evidence; adb logcat -d -s VideoTest:I > build/evidence/video-test-log.txt; adb pull "/sdcard/Movies/Free AI Agent" build/evidence/ || true; exit $status
 
       - name: Upload device test report
         if: always()
@@ -120,3 +123,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
           path: android-app/app/build/reports/androidTests/
+
+      - name: Upload videos made on the emulator
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: emulator-videos
+          if-no-files-found: warn
+          retention-days: 14
+          path: android-app/build/evidence/
