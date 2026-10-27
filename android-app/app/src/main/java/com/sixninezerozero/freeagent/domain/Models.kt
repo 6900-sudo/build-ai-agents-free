@@ -46,6 +46,7 @@ sealed class AppScreen {
     data object Onboarding : AppScreen()
     data object Chat : AppScreen()
     data object Settings : AppScreen()
+    data object Video : AppScreen()
 }
 
 data class ChatUiState(
@@ -62,4 +63,5 @@ data class ChatUiState(
     val geminiKeyError: String? = null,
     /** Shown in the chat after setup, e.g. "Groq key works." */
     val setupNotice: String? = null,
+    val video: VideoUiState = VideoUiState(),
 )

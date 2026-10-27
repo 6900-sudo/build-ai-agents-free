@@ -2,3 +2,8 @@
 # Keep source and line information so release crash reports remain actionable.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Methods the video bridge page calls from JavaScript.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}

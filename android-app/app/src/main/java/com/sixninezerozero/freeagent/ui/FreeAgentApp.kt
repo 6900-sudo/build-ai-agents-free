@@ -15,6 +15,7 @@ import com.sixninezerozero.freeagent.ui.screens.ChatScreen
 import com.sixninezerozero.freeagent.ui.screens.SettingsScreen
 import com.sixninezerozero.freeagent.ui.screens.SetupFeedback
 import com.sixninezerozero.freeagent.ui.screens.SetupScreen
+import com.sixninezerozero.freeagent.ui.screens.VideoScreen
 
 @Composable
 fun FreeAgentApp(viewModel: FreeAgentViewModel) {
@@ -49,6 +50,18 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                 )
             }
 
+            state.screen == AppScreen.Video -> {
+                VideoScreen(
+                    state = state.video,
+                    onBack = viewModel::closeVideo,
+                    onScriptChange = viewModel::updateVideoScript,
+                    onVoice = viewModel::setVideoVoice,
+                    onMood = viewModel::setVideoMood,
+                    onMake = viewModel::makeVideo,
+                    onMakeAnother = viewModel::clearVideoResult,
+                )
+            }
+
             else -> {
                 ChatScreen(
                     state = state,
@@ -59,6 +72,7 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                     onDismissError = viewModel::dismissError,
                     onDismissFallbackNotice = viewModel::dismissFallbackNotice,
                     onDismissSetupNotice = viewModel::dismissSetupNotice,
+                    onMakeVideo = viewModel::openVideo,
                 )
             }
         }

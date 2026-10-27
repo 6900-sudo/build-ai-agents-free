@@ -7,7 +7,6 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import java.security.KeyStore
-import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -71,8 +70,11 @@ class SecureStore(context: Context) {
 
     private fun encrypt(plainText: String): String {
         val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
-        val iv = ByteArray(IV_LENGTH_BYTES).also(SecureRandom()::nextBytes)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
+        // The Keystore key requires randomised encryption, so Android must pick the IV.
+        // Passing our own IV is refused ("Caller-provided IV not permitted").
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+        val iv = cipher.iv
+        check(iv != null && iv.size == IV_LENGTH_BYTES) { "Unexpected IV from Keystore." }
         val ciphertext = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         return "${iv.toBase64()}.${ciphertext.toBase64()}"
     }
