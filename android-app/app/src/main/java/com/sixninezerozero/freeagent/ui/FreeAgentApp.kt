@@ -10,8 +10,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sixninezerozero.freeagent.domain.AppScreen
+import com.sixninezerozero.freeagent.domain.ChatUiState
 import com.sixninezerozero.freeagent.ui.screens.ChatScreen
 import com.sixninezerozero.freeagent.ui.screens.SettingsScreen
+import com.sixninezerozero.freeagent.ui.screens.SetupFeedback
 import com.sixninezerozero.freeagent.ui.screens.SetupScreen
 
 @Composable
@@ -29,21 +31,21 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
             state.screen == AppScreen.Onboarding -> {
                 SetupScreen(
                     initialSettings = state.settings,
-                    errorMessage = state.errorMessage,
+                    feedback = state.setupFeedback(),
                     isOnboarding = true,
                     onSave = viewModel::saveSettings,
-                    onDismissError = viewModel::dismissError,
+                    onKeyEdited = viewModel::keyEdited,
                 )
             }
 
             state.screen == AppScreen.Settings -> {
                 SettingsScreen(
                     initialSettings = state.settings,
-                    errorMessage = state.errorMessage,
+                    feedback = state.setupFeedback(),
                     onBack = viewModel::closeSettings,
                     onSave = viewModel::saveSettings,
+                    onKeyEdited = viewModel::keyEdited,
                     onEraseEverything = viewModel::eraseEverything,
-                    onDismissError = viewModel::dismissError,
                 )
             }
 
@@ -56,8 +58,16 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                     onClearChat = viewModel::clearChat,
                     onDismissError = viewModel::dismissError,
                     onDismissFallbackNotice = viewModel::dismissFallbackNotice,
+                    onDismissSetupNotice = viewModel::dismissSetupNotice,
                 )
             }
         }
     }
 }
+
+private fun ChatUiState.setupFeedback() = SetupFeedback(
+    errorMessage = errorMessage,
+    groqKeyError = groqKeyError,
+    geminiKeyError = geminiKeyError,
+    isCheckingKeys = isCheckingKeys,
+)

@@ -8,20 +8,20 @@ import org.junit.Test
 class PoliciesTest {
     @Test
     fun `key validator accepts empty optional key and trims valid key`() {
-        assertNull(ApiKeyValidator.errorFor("", "Gemini"))
+        assertNull(ApiKeyValidator.errorFor("", AiProvider.GEMINI))
         assertEquals("abcdefghijklmnopqrstuvwxyz", ApiKeyValidator.normalise("  abcdefghijklmnopqrstuvwxyz  "))
-        assertNull(ApiKeyValidator.errorFor("abcdefghijklmnopqrstuvwxyz", "Groq"))
+        assertNull(ApiKeyValidator.errorFor("abcdefghijklmnopqrstuvwxyz", AiProvider.GROQ))
     }
 
     @Test
     fun `key validator rejects short and whitespace values`() {
-        assertTrue(ApiKeyValidator.errorFor("short", "Groq")!!.contains("short"))
+        assertTrue(ApiKeyValidator.errorFor("short", AiProvider.GROQ)!!.contains("short"))
         assertTrue(
-            ApiKeyValidator.errorFor("x".repeat(ApiKeyValidator.MAXIMUM_KEY_LENGTH + 1), "Groq")!!
+            ApiKeyValidator.errorFor("x".repeat(ApiKeyValidator.MAXIMUM_KEY_LENGTH + 1), AiProvider.GROQ)!!
                 .contains("long"),
         )
         assertTrue(
-            ApiKeyValidator.errorFor("abcdefghijklmnopqrst uvwxyz", "Gemini")!!
+            ApiKeyValidator.errorFor("abcdefghijklmnopqrst uvwxyz", AiProvider.GEMINI)!!
                 .contains("spaces"),
         )
     }

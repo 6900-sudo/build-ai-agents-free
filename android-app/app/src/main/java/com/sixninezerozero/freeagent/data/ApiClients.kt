@@ -4,6 +4,8 @@ import com.sixninezerozero.freeagent.domain.AiClient
 import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.ApiFailure
 import com.sixninezerozero.freeagent.domain.ChatMessage
+import com.sixninezerozero.freeagent.domain.KeyCheck
+import com.sixninezerozero.freeagent.domain.KeyChecker
 import com.sixninezerozero.freeagent.domain.MessageRole
 import java.io.IOException
 import org.json.JSONArray
@@ -16,6 +18,9 @@ private const val MAX_TOOL_ROUNDS = 4
 private const val MAX_TOOL_CALLS_PER_ROUND = 4
 private const val GEMINI_ENDPOINT =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+private const val GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models"
+private const val GEMINI_MODELS_ENDPOINT =
+    "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1"
 
 class GroqClient(
     private val transport: HttpTransport,
@@ -202,20 +207,29 @@ private suspend fun execute(
     provider: AiProvider,
 ): HttpResponse {
     val response = try {
-        transport.post(request)
+        transport.send(request)
     } catch (error: IOException) {
         throw ApiFailure.Network(error)
+    } catch (error: IllegalArgumentException) {
+        // The network library refuses header values with characters a key can't contain.
+        throw ApiFailure.InvalidCredentials(provider.displayName, "the key contains characters that can't be sent")
     }
 
     if (response.statusCode in 200..299) return response
 
-    when (response.statusCode) {
-        401, 403 -> throw ApiFailure.InvalidCredentials(provider.displayName)
-        429 -> throw ApiFailure.RateLimited(provider.displayName)
+    if (isRejectedKey(response)) {
+        throw ApiFailure.InvalidCredentials(provider.displayName, extractSafeError(response.body))
     }
+    if (response.statusCode == 429) throw ApiFailure.RateLimited(provider.displayName)
 
     throw ApiFailure.Service(provider.displayName, extractSafeError(response.body))
 }
+
+/** Groq answers 401 for a bad key. Gemini answers 400 with API_KEY_INVALID, or 403. */
+internal fun isRejectedKey(response: HttpResponse): Boolean =
+    response.statusCode == 401 ||
+        response.statusCode == 403 ||
+        (response.statusCode == 400 && response.body.contains("API_KEY_INVALID"))
 
 private fun extractSafeError(body: String): String? {
     if (body.isBlank()) return null
@@ -225,4 +239,43 @@ private fun extractSafeError(body: String): String? {
         ?.takeIf(String::isNotBlank)
         ?.replace(Regex("[\\r\\n]+"), " ")
         ?.take(180)
+}
+
+/**
+ * Checks a key by listing the provider's models. This is free and uses none of the
+ * user's request quota.
+ */
+class HttpKeyChecker(private val transport: HttpTransport) : KeyChecker {
+    override suspend fun check(provider: AiProvider, apiKey: String): KeyCheck {
+        val request = when (provider) {
+            AiProvider.GROQ -> HttpRequest(
+                url = GROQ_MODELS_ENDPOINT,
+                method = "GET",
+                headers = mapOf("Authorization" to "Bearer $apiKey"),
+                readTimeoutMillis = 20_000,
+            )
+            AiProvider.GEMINI -> HttpRequest(
+                url = GEMINI_MODELS_ENDPOINT,
+                method = "GET",
+                headers = mapOf("x-goog-api-key" to apiKey),
+                readTimeoutMillis = 20_000,
+            )
+        }
+
+        val response = try {
+            transport.send(request)
+        } catch (error: IOException) {
+            return KeyCheck.NoConnection
+        } catch (error: IllegalArgumentException) {
+            return KeyCheck.Rejected("the key contains characters that can't be sent")
+        }
+
+        return when {
+            response.statusCode in 200..299 -> KeyCheck.Works
+            isRejectedKey(response) -> KeyCheck.Rejected(extractSafeError(response.body))
+            else -> KeyCheck.CouldNotCheck(
+                extractSafeError(response.body) ?: "error ${response.statusCode}",
+            )
+        }
+    }
 }

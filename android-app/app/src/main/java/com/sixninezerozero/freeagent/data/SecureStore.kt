@@ -27,7 +27,15 @@ class SecureStore(context: Context) {
         context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     fun putString(key: String, value: String) {
-        val encrypted = encrypt(value)
+        val encrypted = try {
+            encrypt(value)
+        } catch (error: Exception) {
+            // Some phones lose or corrupt the Keystore key (e.g. after a lock-screen change).
+            // Make a fresh key once and try again. Values saved with the old key can no
+            // longer be read; getString() already removes those.
+            resetSecretKey()
+            encrypt(value)
+        }
         check(preferences.edit().putString(key, encrypted).commit()) {
             "Could not persist secure app data."
         }
@@ -79,6 +87,12 @@ class SecureStore(context: Context) {
         val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
         return cipher.doFinal(ciphertext).toString(Charsets.UTF_8)
+    }
+
+    private fun resetSecretKey() {
+        runCatching {
+            KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }.deleteEntry(MASTER_KEY_ALIAS)
+        }
     }
 
     private fun getOrCreateSecretKey(): SecretKey {

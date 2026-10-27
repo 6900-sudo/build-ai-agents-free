@@ -57,4 +57,9 @@ data class ChatUiState(
     val errorMessage: String? = null,
     val fallbackNotice: String? = null,
     val failedMessageId: String? = null,
+    val isCheckingKeys: Boolean = false,
+    val groqKeyError: String? = null,
+    val geminiKeyError: String? = null,
+    /** Shown in the chat after setup, e.g. "Groq key works." */
+    val setupNotice: String? = null,
 )
