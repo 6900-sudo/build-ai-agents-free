@@ -135,12 +135,12 @@ class FreeAgentViewModel(
                         )
                     }
                 }
-                .onFailure {
+                .onFailure { error ->
                     _state.update {
                         it.copy(
                             isCheckingKeys = false,
                             errorMessage = "This phone's secure storage didn't work, so the keys weren't saved. " +
-                                "Restart the phone and try again.",
+                                "Restart the phone and try again. (code: ${error::class.simpleName})",
                         )
                     }
                 }
