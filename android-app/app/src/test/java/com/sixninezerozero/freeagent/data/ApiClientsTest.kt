@@ -1,6 +1,8 @@
 package com.sixninezerozero.freeagent.data
 
+import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.ApiFailure
+import com.sixninezerozero.freeagent.domain.KeyCheck
 import com.sixninezerozero.freeagent.domain.ChatMessage
 import com.sixninezerozero.freeagent.domain.MessageRole
 import kotlinx.coroutines.test.runTest
@@ -96,6 +98,49 @@ class ApiClientsTest {
         }
     }
 
+    @Test
+    fun `Gemini bad-key answer (HTTP 400 API_KEY_INVALID) is reported as a rejected key`() {
+        val body = """{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}"""
+        val client = GeminiClient(RecordingTransport(HttpResponse(400, body)))
+
+        val failure = assertThrows(ApiFailure.InvalidCredentials::class.java) {
+            runTest { client.generate("secret-key", "Be useful", listOf(userMessage())) }
+        }
+        assertTrue(failure.message.contains("API key not valid"))
+    }
+
+    @Test
+    fun `key check uses a free GET request and maps each answer`() = runTest {
+        val transport = RecordingTransport(
+            HttpResponse(200, """{"data":[]}"""),
+            HttpResponse(401, """{"error":{"message":"Invalid API Key"}}"""),
+            HttpResponse(400, """{"error":{"message":"API key not valid.","details":[{"reason":"API_KEY_INVALID"}]}}"""),
+            HttpResponse(503, """{"error":{"message":"Service unavailable"}}"""),
+        )
+        val checker = HttpKeyChecker(transport)
+
+        assertEquals(KeyCheck.Works, checker.check(AiProvider.GROQ, "groq-key"))
+        assertEquals("GET", transport.lastRequest!!.method)
+        assertTrue(transport.lastRequest!!.url.endsWith("/openai/v1/models"))
+        assertEquals("Bearer groq-key", transport.lastRequest!!.headers["Authorization"])
+
+        assertEquals(KeyCheck.Rejected("Invalid API Key"), checker.check(AiProvider.GROQ, "groq-key"))
+
+        assertEquals(KeyCheck.Rejected("API key not valid."), checker.check(AiProvider.GEMINI, "gemini-key"))
+        assertEquals("gemini-key", transport.lastRequest!!.headers["x-goog-api-key"])
+        assertFalse(transport.lastRequest!!.url.contains("gemini-key"))
+
+        assertEquals(KeyCheck.CouldNotCheck("Service unavailable"), checker.check(AiProvider.GEMINI, "gemini-key"))
+    }
+
+    @Test
+    fun `key check reports no connection when the network fails`() = runTest {
+        val offline = object : HttpTransport {
+            override suspend fun send(request: HttpRequest): HttpResponse = throw java.io.IOException("offline")
+        }
+        assertEquals(KeyCheck.NoConnection, HttpKeyChecker(offline).check(AiProvider.GROQ, "groq-key"))
+    }
+
     private fun userMessage() = ChatMessage(
         role = MessageRole.USER,
         content = "Hello",
@@ -112,7 +157,7 @@ private class RecordingTransport(
     var lastRequest: HttpRequest? = null
         private set
 
-    override suspend fun post(request: HttpRequest): HttpResponse {
+    override suspend fun send(request: HttpRequest): HttpResponse {
         lastRequest = request
         requests += request
         return pendingResponses.removeFirstOrNull() ?: error("No fake HTTP response remains.")

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -16,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,12 +27,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.sixninezerozero.freeagent.R
+import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.ApiKeyValidator
 import com.sixninezerozero.freeagent.domain.AppSettings
 import com.sixninezerozero.freeagent.domain.ConversationPolicy
@@ -50,29 +51,28 @@ import com.sixninezerozero.freeagent.domain.ConversationPolicy
 private const val GROQ_KEYS_URL = "https://console.groq.com/keys"
 private const val GEMINI_KEYS_URL = "https://aistudio.google.com/app/apikey"
 
+/** Errors and progress the setup form shows. Errors stay until the user edits the field. */
+data class SetupFeedback(
+    val errorMessage: String? = null,
+    val groqKeyError: String? = null,
+    val geminiKeyError: String? = null,
+    val isCheckingKeys: Boolean = false,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreen(
     initialSettings: AppSettings,
-    errorMessage: String?,
+    feedback: SetupFeedback,
     isOnboarding: Boolean,
     onSave: (AppSettings) -> Unit,
-    onDismissError: () -> Unit,
+    onKeyEdited: (AiProvider) -> Unit,
     onBack: (() -> Unit)? = null,
     footer: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(errorMessage) {
-        if (errorMessage != null) {
-            snackbarHostState.showSnackbar(errorMessage)
-            onDismissError()
-        }
-    }
-
     if (!isOnboarding && onBack != null) BackHandler(onBack = onBack)
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -96,8 +96,10 @@ fun SetupScreen(
     ) { padding ->
         SettingsForm(
             initialSettings = initialSettings,
+            feedback = feedback,
             isOnboarding = isOnboarding,
             onSave = onSave,
+            onKeyEdited = onKeyEdited,
             footer = footer,
             modifier = Modifier
                 .fillMaxSize()
@@ -109,8 +111,10 @@ fun SetupScreen(
 @Composable
 private fun SettingsForm(
     initialSettings: AppSettings,
+    feedback: SetupFeedback,
     isOnboarding: Boolean,
     onSave: (AppSettings) -> Unit,
+    onKeyEdited: (AiProvider) -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -139,8 +143,10 @@ private fun SettingsForm(
             value = groqKey,
             onValueChange = {
                 if (it.length <= ApiKeyValidator.MAXIMUM_KEY_LENGTH) groqKey = it
+                onKeyEdited(AiProvider.GROQ)
             },
             label = stringResource(R.string.groq_key_label),
+            error = feedback.groqKeyError,
             visible = showGroqKey,
             onToggleVisibility = { showGroqKey = !showGroqKey },
         )
@@ -155,8 +161,10 @@ private fun SettingsForm(
             value = geminiKey,
             onValueChange = {
                 if (it.length <= ApiKeyValidator.MAXIMUM_KEY_LENGTH) geminiKey = it
+                onKeyEdited(AiProvider.GEMINI)
             },
             label = stringResource(R.string.gemini_key_label),
+            error = feedback.geminiKeyError,
             visible = showGeminiKey,
             onToggleVisibility = { showGeminiKey = !showGeminiKey },
         )
@@ -199,8 +207,24 @@ private fun SettingsForm(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
+        feedback.errorMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (feedback.groqKeyError != null || feedback.geminiKeyError != null) {
+            Text(
+                text = stringResource(R.string.key_problem_above),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+
         Spacer(Modifier.height(4.dp))
         Button(
+            enabled = !feedback.isCheckingKeys,
             onClick = {
                 onSave(
                     AppSettings(
@@ -215,10 +239,16 @@ private fun SettingsForm(
                 .fillMaxWidth()
                 .height(52.dp),
         ) {
-            Text(
-                if (isOnboarding) stringResource(R.string.save_and_continue)
-                else stringResource(R.string.save_settings),
-            )
+            if (feedback.isCheckingKeys) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.checking_keys))
+            } else {
+                Text(
+                    if (isOnboarding) stringResource(R.string.save_and_continue)
+                    else stringResource(R.string.save_settings),
+                )
+            }
         }
 
         footer()
@@ -230,6 +260,7 @@ private fun SecretField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    error: String?,
     visible: Boolean,
     onToggleVisibility: () -> Unit,
 ) {
@@ -239,7 +270,12 @@ private fun SecretField(
         label = { Text(label) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        isError = error != null,
+        supportingText = error?.let { message -> { Text(message) } },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            autoCorrectEnabled = false,
+        ),
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         trailingIcon = {
             IconButton(onClick = onToggleVisibility) {

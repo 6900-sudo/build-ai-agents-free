@@ -7,16 +7,19 @@ import androidx.lifecycle.viewModelScope
 import com.sixninezerozero.freeagent.data.AppRepository
 import com.sixninezerozero.freeagent.data.GeminiClient
 import com.sixninezerozero.freeagent.data.GroqClient
+import com.sixninezerozero.freeagent.data.HttpKeyChecker
 import com.sixninezerozero.freeagent.data.SecureStore
 import com.sixninezerozero.freeagent.data.UrlConnectionTransport
 import com.sixninezerozero.freeagent.domain.AiCoordinator
+import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.ApiFailure
-import com.sixninezerozero.freeagent.domain.ApiKeyValidator
 import com.sixninezerozero.freeagent.domain.AppScreen
 import com.sixninezerozero.freeagent.domain.AppSettings
 import com.sixninezerozero.freeagent.domain.ChatMessage
 import com.sixninezerozero.freeagent.domain.ChatUiState
 import com.sixninezerozero.freeagent.domain.ConversationPolicy
+import com.sixninezerozero.freeagent.domain.KeySetup
+import com.sixninezerozero.freeagent.domain.KeySetupResult
 import com.sixninezerozero.freeagent.domain.MessageRole
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -29,6 +32,7 @@ import kotlinx.coroutines.launch
 class FreeAgentViewModel(
     private val repository: AppRepository,
     private val coordinator: AiCoordinator,
+    private val keySetup: KeySetup,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -60,7 +64,9 @@ class FreeAgentViewModel(
     }
 
     fun openSettings() {
-        _state.update { it.copy(screen = AppScreen.Settings, errorMessage = null) }
+        _state.update {
+            it.copy(screen = AppScreen.Settings, errorMessage = null, groqKeyError = null, geminiKeyError = null)
+        }
     }
 
     fun closeSettings() {
@@ -70,44 +76,89 @@ class FreeAgentViewModel(
     }
 
     fun saveSettings(settings: AppSettings) {
-        val cleaned = settings.copy(
-            groqApiKey = ApiKeyValidator.normalise(settings.groqApiKey),
-            geminiApiKey = ApiKeyValidator.normalise(settings.geminiApiKey),
-            systemPrompt = settings.systemPrompt.trim(),
-        )
-        val validationError =
-            ApiKeyValidator.errorFor(cleaned.groqApiKey, "Groq")
-                ?: ApiKeyValidator.errorFor(cleaned.geminiApiKey, "Gemini")
-                ?: when {
-                    !cleaned.hasAnyKey -> "Add at least one API key."
-                    cleaned.systemPrompt.isBlank() -> "The assistant instruction cannot be empty."
-                    cleaned.systemPrompt.length > ConversationPolicy.MAX_SYSTEM_PROMPT_CHARACTERS ->
-                        "The assistant instruction is too long."
-                    else -> null
-                }
-
-        if (validationError != null) {
-            _state.update { it.copy(errorMessage = validationError) }
+        if (_state.value.isCheckingKeys) return
+        val systemPrompt = settings.systemPrompt.trim()
+        val promptError = when {
+            systemPrompt.isBlank() -> "The assistant instruction cannot be empty."
+            systemPrompt.length > ConversationPolicy.MAX_SYSTEM_PROMPT_CHARACTERS ->
+                "The assistant instruction is too long."
+            else -> null
+        }
+        if (promptError != null) {
+            _state.update { it.copy(errorMessage = promptError) }
             return
         }
 
+        _state.update {
+            it.copy(isCheckingKeys = true, errorMessage = null, groqKeyError = null, geminiKeyError = null)
+        }
+
         viewModelScope.launch {
+            val result = try {
+                keySetup.prepare(settings.groqApiKey, settings.geminiApiKey)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                KeySetupResult(
+                    groqKey = settings.groqApiKey,
+                    geminiKey = settings.geminiApiKey,
+                    generalError = "The keys couldn't be checked. Please try again.",
+                )
+            }
+
+            if (!result.canSave) {
+                _state.update {
+                    it.copy(
+                        isCheckingKeys = false,
+                        groqKeyError = result.groqError,
+                        geminiKeyError = result.geminiError,
+                        errorMessage = result.generalError,
+                    )
+                }
+                return@launch
+            }
+
+            val cleaned = settings.copy(
+                groqApiKey = result.groqKey,
+                geminiApiKey = result.geminiKey,
+                systemPrompt = systemPrompt,
+            )
             runCatching { repository.saveSettings(cleaned) }
                 .onSuccess {
                     _state.update {
                         it.copy(
+                            isCheckingKeys = false,
                             settings = cleaned,
                             screen = AppScreen.Chat,
                             errorMessage = null,
+                            setupNotice = result.notice,
                         )
                     }
                 }
                 .onFailure {
                     _state.update {
-                        it.copy(errorMessage = "Settings could not be saved securely. Please try again.")
+                        it.copy(
+                            isCheckingKeys = false,
+                            errorMessage = "This phone's secure storage didn't work, so the keys weren't saved. " +
+                                "Restart the phone and try again.",
+                        )
                     }
                 }
         }
+    }
+
+    /** Clears the error under a key box once the user starts fixing it. */
+    fun keyEdited(provider: AiProvider) {
+        _state.update {
+            when (provider) {
+                AiProvider.GROQ -> it.copy(groqKeyError = null, errorMessage = null)
+                AiProvider.GEMINI -> it.copy(geminiKeyError = null, errorMessage = null)
+            }
+        }
+    }
+
+    fun dismissSetupNotice() {
+        _state.update { it.copy(setupNotice = null) }
     }
 
     fun sendMessage(rawText: String) {
@@ -255,6 +306,7 @@ class FreeAgentViewModel(
                             groqClient = GroqClient(transport),
                             geminiClient = GeminiClient(transport),
                         ),
+                        keySetup = KeySetup(HttpKeyChecker(transport)),
                     ) as T
                 }
             }

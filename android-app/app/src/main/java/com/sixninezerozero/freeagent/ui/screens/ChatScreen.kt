@@ -68,6 +68,7 @@ fun ChatScreen(
     onClearChat: () -> Unit,
     onDismissError: () -> Unit,
     onDismissFallbackNotice: () -> Unit,
+    onDismissSetupNotice: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val retryLabel = stringResource(R.string.retry)
@@ -89,6 +90,16 @@ fun ChatScreen(
         val message = state.fallbackNotice ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message = message, withDismissAction = true)
         onDismissFallbackNotice()
+    }
+
+    LaunchedEffect(state.setupNotice) {
+        val message = state.setupNotice ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(
+            message = message,
+            withDismissAction = true,
+            duration = SnackbarDuration.Long,
+        )
+        onDismissSetupNotice()
     }
 
     Scaffold(

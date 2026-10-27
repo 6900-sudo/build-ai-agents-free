@@ -14,25 +14,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.sixninezerozero.freeagent.R
+import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.AppSettings
 
 @Composable
 fun SettingsScreen(
     initialSettings: AppSettings,
-    errorMessage: String?,
+    feedback: SetupFeedback,
     onBack: () -> Unit,
     onSave: (AppSettings) -> Unit,
+    onKeyEdited: (AiProvider) -> Unit,
     onEraseEverything: () -> Unit,
-    onDismissError: () -> Unit,
 ) {
     var showEraseDialog by remember { mutableStateOf(false) }
 
     SetupScreen(
         initialSettings = initialSettings,
-        errorMessage = errorMessage,
+        feedback = feedback,
         isOnboarding = false,
         onSave = onSave,
-        onDismissError = onDismissError,
+        onKeyEdited = onKeyEdited,
         onBack = onBack,
         footer = {
             Text(
