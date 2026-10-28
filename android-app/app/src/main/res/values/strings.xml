@@ -13,6 +13,13 @@
     <string name="privacy_note">Never paste an API key into a chat message. Free providers may use prompts to improve their services, so do not send confidential information.</string>
     <string name="get_groq_key">Get a Groq key</string>
     <string name="get_gemini_key">Get a Gemini key</string>
+    <string name="pexels_key_label">Pexels key (optional, free, for real photos and clips in videos)</string>
+    <string name="get_pexels_key">Get a free Pexels key</string>
+    <string name="video_background_label">Background</string>
+    <string name="video_needs_pexels">Real photos and clips need a free Pexels key.</string>
+    <string name="video_add_pexels">Add a Pexels key in Settings</string>
+    <string name="video_clips_data_note">Video clips download about 20–40 MB per video. Use Wi‑Fi if you can.</string>
+    <string name="video_warnings_title">Notes</string>
     <string name="save_and_continue">Save and continue</string>
     <string name="save_settings">Save settings</string>
     <string name="checking_keys">Checking key…</string>

@@ -25,6 +25,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 private const val BRIDGE_URL = "https://appassets.androidplatform.net/assets/studio/bridge.html"
@@ -68,7 +69,11 @@ class VideoMaker(context: Context) {
     val isBusy: Boolean
         get() = job != null
 
-    suspend fun make(request: VideoRequest, onProgress: (VideoProgress) -> Unit): MadeVideo {
+    suspend fun make(
+        request: VideoRequest,
+        searchesFor: suspend (List<String>) -> List<String>? = { null },
+        onProgress: (VideoProgress) -> Unit,
+    ): MadeVideo {
         if (job != null) throw VideoMakerException("A video is already being made.")
         val output = File(appContext.cacheDir, "videos").apply { mkdirs() }
             .resolve("video-${System.currentTimeMillis()}.mp4")
@@ -77,8 +82,15 @@ class VideoMaker(context: Context) {
         try {
             withContext(Dispatchers.Main) { startWebView(current) }
             withTimeout(READY_TIMEOUT_MS) { current.ready.await() }
+            val queries = if (request.background.needsPexels && request.pexelsKey.isNotBlank()) {
+                onProgress(VideoProgress("plan", null))
+                val scenes = planScenes(request)
+                if (scenes.isNullOrEmpty()) null else runCatching { searchesFor(scenes) }.getOrNull()
+            } else {
+                null
+            }
             withContext(Dispatchers.Main) {
-                webView?.evaluateJavascript("window.makeVideo(${JSONObject.quote(request.toJson())})", null)
+                webView?.evaluateJavascript("window.makeVideo(${JSONObject.quote(request.toJson(queries))})", null)
             }
             return current.result.await()
         } catch (error: Exception) {
@@ -92,6 +104,25 @@ class VideoMaker(context: Context) {
             job = null
             withContext(Dispatchers.Main) { destroyWebView() }
         }
+    }
+
+    /** The scene texts exactly as the engine will split them (title first), or null. */
+    private suspend fun planScenes(request: VideoRequest): List<String>? {
+        val raw = CompletableDeferred<String?>()
+        withContext(Dispatchers.Main) {
+            val view = webView
+            if (view == null) {
+                raw.complete(null)
+            } else {
+                view.evaluateJavascript("window.planScenes(${JSONObject.quote(request.toJson())})") { raw.complete(it) }
+            }
+        }
+        // evaluateJavascript hands back the JS string as a JSON-encoded string literal.
+        val decoded = withTimeoutOrNull(10_000) { raw.await() }?.let { runCatching { org.json.JSONTokener(it).nextValue() as? String }.getOrNull() }
+            ?: return null
+        val json = runCatching { JSONObject(decoded) }.getOrNull() ?: return null
+        val items = json.optJSONArray("items") ?: return null
+        return (0 until items.length()).map { items.optString(it) }
     }
 
     @SuppressLint("SetJavaScriptEnabled")

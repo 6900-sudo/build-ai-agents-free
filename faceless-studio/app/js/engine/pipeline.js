@@ -5,7 +5,7 @@ import { mixAudio } from './audio.js';
 import { Renderer } from './renderer.js';
 import { encodeVideo } from './encoder.js';
 import { loadFonts } from './captions.js';
-import { loadMediaItem, fetchPexelsImages } from './backgrounds.js';
+import { loadMediaItem, fetchPexelsMedia } from './backgrounds.js';
 import { buildSrt } from './srt.js';
 import { hashString } from './util.js';
 
@@ -51,8 +51,11 @@ export async function prepareProject(project, assets = {}, { onProgress, signal,
     onProgress?.({ stage: 'stock' });
     const [W, H] = frameSize(project);
     const orientation = W < H ? 'portrait' : W > H ? 'landscape' : 'square';
-    const keywords = timeline.items.map((it) => (bg.query ? bg.query : it.keyword || parsed.scenes[0]?.keyword || 'abstract'));
-    media = await fetchPexelsImages(project.keys.pexels, keywords, orientation, onWarn);
+    // One search per timeline item: the caller's own words (e.g. picked by an AI) when given,
+    // then a single fixed query, then the engine's keyword for that scene.
+    const keywords = timeline.items.map((it, i) =>
+      String(bg.queries?.[i] || '').trim() || bg.query || it.keyword || parsed.scenes[0]?.keyword || 'abstract');
+    media = await fetchPexelsMedia(project.keys.pexels, keywords, orientation, { kind: bg.kind === 'video' ? 'video' : 'photo', onWarn, onProgress });
   }
 
   let logo = null;

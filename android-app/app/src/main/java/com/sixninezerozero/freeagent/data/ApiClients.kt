@@ -18,6 +18,7 @@ private const val MAX_TOOL_ROUNDS = 4
 private const val MAX_TOOL_CALLS_PER_ROUND = 4
 private const val GEMINI_ENDPOINT =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+private const val PEXELS_CHECK_ENDPOINT = "https://api.pexels.com/v1/search?query=nature&per_page=1"
 private const val GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models"
 private const val GEMINI_MODELS_ENDPOINT =
     "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1"
@@ -270,6 +271,29 @@ class HttpKeyChecker(private val transport: HttpTransport) : KeyChecker {
             return KeyCheck.Rejected("the key contains characters that can't be sent")
         }
 
+        return interpret(response)
+    }
+
+    /** One small Pexels photo search (uses 1 of the free 200 requests an hour). */
+    override suspend fun checkPexels(apiKey: String): KeyCheck {
+        val response = try {
+            transport.send(
+                HttpRequest(
+                    url = PEXELS_CHECK_ENDPOINT,
+                    method = "GET",
+                    headers = mapOf("Authorization" to apiKey),
+                    readTimeoutMillis = 20_000,
+                ),
+            )
+        } catch (error: IOException) {
+            return KeyCheck.NoConnection
+        } catch (error: IllegalArgumentException) {
+            return KeyCheck.Rejected("the key contains characters that can't be sent")
+        }
+        return interpret(response)
+    }
+
+    private fun interpret(response: HttpResponse): KeyCheck {
         return when {
             response.statusCode in 200..299 -> KeyCheck.Works
             isRejectedKey(response) -> KeyCheck.Rejected(extractSafeError(response.body))

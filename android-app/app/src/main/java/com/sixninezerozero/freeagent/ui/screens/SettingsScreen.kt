@@ -24,6 +24,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onSave: (AppSettings) -> Unit,
     onKeyEdited: (AiProvider) -> Unit,
+    onPexelsEdited: () -> Unit,
     onEraseEverything: () -> Unit,
 ) {
     var showEraseDialog by remember { mutableStateOf(false) }
@@ -34,6 +35,7 @@ fun SettingsScreen(
         isOnboarding = false,
         onSave = onSave,
         onKeyEdited = onKeyEdited,
+        onPexelsEdited = onPexelsEdited,
         onBack = onBack,
         footer = {
             Text(

@@ -9,11 +9,13 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.sixninezerozero.freeagent.MainActivity
+import com.sixninezerozero.freeagent.domain.VideoBackground
 import com.sixninezerozero.freeagent.domain.VideoMood
 import com.sixninezerozero.freeagent.domain.VideoRequest
 import com.sixninezerozero.freeagent.domain.VideoVoice
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -37,10 +39,40 @@ class VideoDeviceTest {
     @Test
     fun makesMp4WithFreeVoice() = makeAndCheck(VideoVoice.UK_MALE, timeoutMinutes = 15)
 
-    private fun makeAndCheck(voice: VideoVoice, timeoutMinutes: Long) = runBlocking {
-        val request = VideoRequest(script = SCRIPT, voice = voice, mood = VideoMood.CALM, quality = "720")
+    /**
+     * Stock clips from a fake Pexels API that CI runs on the test machine (tools/fake-pexels.mjs),
+     * reached from the emulator at 10.0.2.2. Real Pexels needs the user's own key.
+     */
+    @Test
+    fun makesMp4WithStockClips() {
+        val searches = mutableListOf<List<String>>()
+        makeAndCheck(
+            VideoVoice.NONE,
+            timeoutMinutes = 10,
+            background = VideoBackground.CLIPS,
+            searchesFor = { scenes -> List(scenes.size) { i -> if (i % 2 == 0) "radiator" else "living room" }.also { searches += scenes } },
+        )
+        assertEquals("The script should be split into one scene per sentence", 3, searches.single().size)
+    }
+
+    private fun makeAndCheck(
+        voice: VideoVoice,
+        timeoutMinutes: Long,
+        background: VideoBackground = VideoBackground.ANIMATED,
+        searchesFor: suspend (List<String>) -> List<String>? = { null },
+    ) = runBlocking {
+        val request = VideoRequest(
+            script = SCRIPT,
+            voice = voice,
+            mood = VideoMood.CALM,
+            quality = "720",
+            background = background,
+            pexelsKey = if (background == VideoBackground.ANIMATED) "" else "test-key",
+            stockBase = if (background == VideoBackground.ANIMATED) null else "http://10.0.2.2:8787",
+        )
+        val label = "${voice.id}/${background.id}"
         val outcome = withTimeout(timeoutMinutes * 60_000) {
-            PhoneVideoService(context).makeAndSave(request) { Log.i(TAG, "${voice.id}: ${it.stage} ${it.fraction}") }
+            PhoneVideoService(context).makeAndSave(request, searchesFor) { Log.i(TAG, "$label: ${it.stage} ${it.fraction}") }
         }
 
         val extractor = MediaExtractor()
@@ -53,12 +85,15 @@ class VideoDeviceTest {
 
         Log.i(
             TAG,
-            "RESULT voice=${voice.id} path=${outcome.displayPath} tracks=$mimes " +
+            "RESULT video=$label path=${outcome.displayPath} tracks=$mimes " +
                 "duration=${"%.1f".format(videoSeconds)}s made_in=${outcome.makeSeconds}s warnings=${outcome.warnings}",
         )
         assertTrue("No H.264 video track: $mimes", "video/avc" in mimes)
         assertTrue("No AAC audio track: $mimes", mimes.any { it == "audio/mp4a-latm" })
         assertTrue("Video is only $videoSeconds s long", videoSeconds in 6.0..30.0)
+        if (background != VideoBackground.ANIMATED) {
+            assertTrue("Stock footage fell back: ${outcome.warnings}", outcome.warnings.none { "animated" in it })
+        }
     }
 
     private companion object {

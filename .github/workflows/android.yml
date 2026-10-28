@@ -103,6 +103,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Start a fake Pexels API for the stock-footage test
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          nohup node android-app/tools/fake-pexels.mjs --media "$RUNNER_TEMP/fake-pexels" --port 8787 --public-base http://10.0.2.2:8787 > "$RUNNER_TEMP/fake-pexels.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null -H "Authorization: test-key" "http://127.0.0.1:8787/v1/search?query=x" && break; sleep 2; done
+          cat "$RUNNER_TEMP/fake-pexels.log"
+
       - name: Run device tests (Keystore and real video making)
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:

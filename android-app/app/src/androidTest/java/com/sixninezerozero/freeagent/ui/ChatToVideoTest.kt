@@ -64,7 +64,11 @@ class ChatToVideoTest {
             override suspend fun generate(apiKey: String, systemPrompt: String, messages: List<ChatMessage>) = "unused"
         }
         val video = object : VideoService {
-            override suspend fun makeAndSave(request: VideoRequest, onProgress: (VideoProgress) -> Unit): VideoOutcome {
+            override suspend fun makeAndSave(
+                request: VideoRequest,
+                searchesFor: suspend (List<String>) -> List<String>?,
+                onProgress: (VideoProgress) -> Unit,
+            ): VideoOutcome {
                 made += request
                 return VideoOutcome("content://test/video", "Movies/Free AI Agent/test.mp4", 12.0, 3.0, emptyList())
             }

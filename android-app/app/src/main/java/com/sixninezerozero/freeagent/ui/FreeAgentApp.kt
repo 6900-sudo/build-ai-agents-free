@@ -36,6 +36,7 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                     isOnboarding = true,
                     onSave = viewModel::saveSettings,
                     onKeyEdited = viewModel::keyEdited,
+                    onPexelsEdited = viewModel::pexelsKeyEdited,
                 )
             }
 
@@ -46,6 +47,7 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                     onBack = viewModel::closeSettings,
                     onSave = viewModel::saveSettings,
                     onKeyEdited = viewModel::keyEdited,
+                    onPexelsEdited = viewModel::pexelsKeyEdited,
                     onEraseEverything = viewModel::eraseEverything,
                 )
             }
@@ -57,6 +59,9 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                     onScriptChange = viewModel::updateVideoScript,
                     onVoice = viewModel::setVideoVoice,
                     onMood = viewModel::setVideoMood,
+                    onBackground = viewModel::setVideoBackground,
+                    hasPexelsKey = state.settings.pexelsApiKey.isNotBlank(),
+                    onOpenSettings = viewModel::openSettings,
                     onMake = viewModel::makeVideo,
                     onMakeAnother = viewModel::clearVideoResult,
                 )
@@ -83,5 +88,6 @@ private fun ChatUiState.setupFeedback() = SetupFeedback(
     errorMessage = errorMessage,
     groqKeyError = groqKeyError,
     geminiKeyError = geminiKeyError,
+    pexelsKeyError = pexelsKeyError,
     isCheckingKeys = isCheckingKeys,
 )

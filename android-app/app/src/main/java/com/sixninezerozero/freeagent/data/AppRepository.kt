@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 
 private const val KEY_GROQ = "groq_api_key"
 private const val KEY_GEMINI = "gemini_api_key"
+private const val KEY_PEXELS = "pexels_api_key"
 private const val KEY_FALLBACK = "fallback_enabled"
 private const val KEY_SYSTEM_PROMPT = "system_prompt"
 private const val KEY_HISTORY = "chat_history"
@@ -21,6 +22,7 @@ class AppRepository(
         AppSettings(
             groqApiKey = secureStore.getString(KEY_GROQ).orEmpty(),
             geminiApiKey = secureStore.getString(KEY_GEMINI).orEmpty(),
+            pexelsApiKey = secureStore.getString(KEY_PEXELS).orEmpty(),
             fallbackEnabled = secureStore.getBoolean(KEY_FALLBACK, true),
             systemPrompt = secureStore.getString(KEY_SYSTEM_PROMPT)
                 ?.takeIf(String::isNotBlank)
@@ -31,6 +33,7 @@ class AppRepository(
     suspend fun saveSettings(settings: AppSettings) = withContext(ioDispatcher) {
         writeOrRemove(KEY_GROQ, settings.groqApiKey.trim())
         writeOrRemove(KEY_GEMINI, settings.geminiApiKey.trim())
+        writeOrRemove(KEY_PEXELS, settings.pexelsApiKey.trim())
         secureStore.putBoolean(KEY_FALLBACK, settings.fallbackEnabled)
         secureStore.putString(KEY_SYSTEM_PROMPT, settings.systemPrompt.trim())
     }
