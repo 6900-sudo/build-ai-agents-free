@@ -68,7 +68,8 @@ class VideoDeviceTest {
             quality = "720",
             background = background,
             pexelsKey = if (background == VideoBackground.ANIMATED) "" else "test-key",
-            stockBase = if (background == VideoBackground.ANIMATED) null else "http://10.0.2.2:8787",
+            stockBase = if (background == VideoBackground.ANIMATED) null else TEST_STOCK_BASE,
+            testStockUpstream = if (background == VideoBackground.ANIMATED) null else "http://10.0.2.2:8787",
         )
         val label = "${voice.id}/${background.id}"
         val outcome = withTimeout(timeoutMinutes * 60_000) {

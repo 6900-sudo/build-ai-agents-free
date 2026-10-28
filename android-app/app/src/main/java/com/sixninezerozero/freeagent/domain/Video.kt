@@ -33,6 +33,8 @@ data class VideoRequest(
     val pexelsKey: String = "",
     /** Only for tests: a fake Pexels API address. */
     val stockBase: String? = null,
+    /** Only for tests: where the app forwards requests sent to [stockBase]. */
+    val testStockUpstream: String? = null,
 ) {
     fun toJson(queries: List<String>? = null): String = JSONObject()
         .put("script", script)

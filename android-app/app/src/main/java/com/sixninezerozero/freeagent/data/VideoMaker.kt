@@ -31,6 +31,9 @@ import org.json.JSONObject
 private const val BRIDGE_URL = "https://appassets.androidplatform.net/assets/studio/bridge.html"
 private const val READY_TIMEOUT_MS = 30_000L
 
+/** Tests only: requests under this address are passed to [VideoRequest.testStockUpstream]. */
+const val TEST_STOCK_BASE = "https://appassets.androidplatform.net/test-stock"
+
 /** A finished video in the app's cache, before it is saved to the gallery. */
 data class MadeVideo(
     val file: File,
@@ -77,7 +80,7 @@ class VideoMaker(context: Context) {
         if (job != null) throw VideoMakerException("A video is already being made.")
         val output = File(appContext.cacheDir, "videos").apply { mkdirs() }
             .resolve("video-${System.currentTimeMillis()}.mp4")
-        val current = Job(output, onProgress)
+        val current = Job(output, onProgress, request.testStockUpstream?.trimEnd('/'))
         job = current
         try {
             withContext(Dispatchers.Main) { startWebView(current) }
@@ -168,8 +171,14 @@ class VideoMaker(context: Context) {
         private val loader: WebViewAssetLoader,
         private val current: Job,
     ) : WebViewClient() {
-        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-            loader.shouldInterceptRequest(request.url)
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val upstream = current.stockUpstream
+            val url = request.url.toString()
+            if (upstream != null && url.startsWith("$TEST_STOCK_BASE/")) {
+                return proxy(upstream + url.removePrefix(TEST_STOCK_BASE), request)
+            }
+            return loader.shouldInterceptRequest(request.url)
+        }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
 
@@ -200,7 +209,25 @@ class VideoMaker(context: Context) {
         webView = null
     }
 
-    private class Job(val output: File, val onProgress: (VideoProgress) -> Unit) {
+    /**
+     * Tests only. The engine page is HTTPS, so it may not call the plain-HTTP fake Pexels server
+     * on the test machine directly; the app fetches it and hands the answer back.
+     */
+    private fun proxy(target: String, request: WebResourceRequest): WebResourceResponse {
+        val connection = java.net.URL(target).openConnection() as java.net.HttpURLConnection
+        request.requestHeaders["Authorization"]?.let { connection.setRequestProperty("Authorization", it) }
+        val status = connection.responseCode
+        val body = if (status in 200..299) connection.inputStream else connection.errorStream
+        val type = connection.contentType?.substringBefore(';') ?: "application/octet-stream"
+        val headers = mapOf("Access-Control-Allow-Origin" to "*")
+        return WebResourceResponse(type, null, status, if (status in 200..299) "OK" else "Error", headers, body)
+    }
+
+    private class Job(
+        val output: File,
+        val onProgress: (VideoProgress) -> Unit,
+        val stockUpstream: String? = null,
+    ) {
         val ready = CompletableDeferred<Unit>()
         val result = CompletableDeferred<MadeVideo>()
         val warnings = mutableListOf<String>()
