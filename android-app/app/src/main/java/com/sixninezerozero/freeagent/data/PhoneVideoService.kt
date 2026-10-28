@@ -11,8 +11,12 @@ class PhoneVideoService(
     private val context: Context,
     private val maker: VideoMaker = VideoMaker.get(context),
 ) : VideoService {
-    override suspend fun makeAndSave(request: VideoRequest, onProgress: (VideoProgress) -> Unit): VideoOutcome {
-        val made = maker.make(request, onProgress)
+    override suspend fun makeAndSave(
+        request: VideoRequest,
+        searchesFor: suspend (List<String>) -> List<String>?,
+        onProgress: (VideoProgress) -> Unit,
+    ): VideoOutcome {
+        val made = maker.make(request, searchesFor, onProgress)
         onProgress(VideoProgress("save", null))
         val saved = VideoSaver.save(context, made.file)
         return VideoOutcome(

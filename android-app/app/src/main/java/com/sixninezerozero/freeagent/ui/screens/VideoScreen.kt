@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.sixninezerozero.freeagent.R
+import com.sixninezerozero.freeagent.domain.VideoBackground
 import com.sixninezerozero.freeagent.domain.VideoMood
 import com.sixninezerozero.freeagent.domain.VideoScript
 import com.sixninezerozero.freeagent.domain.VideoUiState
@@ -56,6 +58,9 @@ fun VideoScreen(
     onScriptChange: (String) -> Unit,
     onVoice: (VideoVoice) -> Unit,
     onMood: (VideoMood) -> Unit,
+    onBackground: (VideoBackground) -> Unit,
+    hasPexelsKey: Boolean,
+    onOpenSettings: () -> Unit,
     onMake: () -> Unit,
     onMakeAnother: () -> Unit,
 ) {
@@ -92,7 +97,14 @@ fun VideoScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             state.result?.let { result ->
-                VideoReady(result.displayPath, result.durationSeconds, result.makeSeconds, result.uri.toUri(), onMakeAnother)
+                VideoReady(
+                    result.displayPath,
+                    result.durationSeconds,
+                    result.makeSeconds,
+                    result.uri.toUri(),
+                    result.warnings,
+                    onMakeAnother,
+                )
                 return@Column
             }
 
@@ -141,6 +153,35 @@ fun VideoScreen(
                 }
             }
 
+            Text(stringResource(R.string.video_background_label), style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                VideoBackground.entries.forEach { background ->
+                    FilterChip(
+                        selected = state.background == background,
+                        onClick = { onBackground(background) },
+                        enabled = !state.isMaking && (hasPexelsKey || !background.needsPexels),
+                        label = { Text(background.label) },
+                        modifier = Modifier.testTag("background-${background.id}"),
+                    )
+                }
+            }
+            if (!hasPexelsKey) {
+                Text(
+                    text = stringResource(R.string.video_needs_pexels),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onOpenSettings, enabled = !state.isMaking) {
+                    Text(stringResource(R.string.video_add_pexels))
+                }
+            } else if (state.background == VideoBackground.CLIPS) {
+                Text(
+                    text = stringResource(R.string.video_clips_data_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             state.error?.let {
                 Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
@@ -187,6 +228,7 @@ private fun VideoReady(
     durationSeconds: Double,
     makeSeconds: Double,
     uri: Uri,
+    warnings: List<String>,
     onMakeAnother: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -210,6 +252,10 @@ private fun VideoReady(
                 ),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (warnings.isNotEmpty()) {
+                Text(stringResource(R.string.video_warnings_title), style = MaterialTheme.typography.labelLarge)
+                warnings.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+            }
         }
     }
     Button(

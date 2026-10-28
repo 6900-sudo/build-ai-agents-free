@@ -208,33 +208,102 @@ export async function seekVideo(item, time) {
   });
 }
 
-export async function fetchPexelsImages(apiKey, keywords, orientation, onWarn) {
+// Pexels API address. Tests point it at a local fake server; the media files themselves come
+// from the addresses the API returns.
+let STOCK_BASE = 'https://api.pexels.com';
+export function setStockBase(url) {
+  STOCK_BASE = String(url || 'https://api.pexels.com').replace(/\/+$/, '');
+}
+
+const MAX_CLIP_BYTES = 15 * 1024 * 1024;
+
+async function pexelsSearch(apiKey, path) {
+  const res = await fetch(`${STOCK_BASE}${path}`, { headers: { Authorization: apiKey } });
+  if (res.status === 401 || res.status === 403) throw new UserError('Pexels rejected your API key. Check it in Settings.');
+  if (!res.ok) throw new Error('Pexels HTTP ' + res.status);
+  return res.json();
+}
+
+async function pexelsPhoto(apiKey, kw, orientation) {
+  const json = await pexelsSearch(apiKey, `/v1/search?query=${encodeURIComponent(kw)}&orientation=${orientation}&per_page=5`);
+  const photo = json.photos?.[0];
+  if (!photo) return null;
+  const img = await fetch(photo.src.large2x || photo.src.large);
+  if (!img.ok) throw new Error('image HTTP ' + img.status);
+  return loadMediaItem(await img.blob());
+}
+
+/** Picks the smallest MP4 that is at least 720 px on its short side (or the largest smaller one). */
+export function pickClipFile(files, orientation) {
+  const mp4 = (files || []).filter((f) => f && f.link && (f.file_type || 'video/mp4') === 'video/mp4' && f.width && f.height);
+  const wantPortrait = orientation === 'portrait';
+  const shaped = mp4.filter((f) => (orientation === 'square' ? true : (f.height >= f.width) === wantPortrait));
+  const pool = shaped.length ? shaped : mp4;
+  const short = (f) => Math.min(f.width, f.height);
+  const big = pool.filter((f) => short(f) >= 720 && short(f) <= 1440).sort((a, b) => short(a) - short(b));
+  if (big.length) return big[0];
+  return pool.filter((f) => short(f) < 720).sort((a, b) => short(b) - short(a))[0] || null;
+}
+
+async function pexelsClip(apiKey, kw, orientation) {
+  const json = await pexelsSearch(apiKey, `/videos/search?query=${encodeURIComponent(kw)}&orientation=${orientation}&per_page=8&size=medium`);
+  for (const video of json.videos || []) {
+    const file = pickClipFile(video.video_files, orientation);
+    if (!file) continue;
+    const res = await fetch(file.link);
+    if (!res.ok) continue;
+    const size = Number(res.headers.get('content-length') || 0);
+    if (size > MAX_CLIP_BYTES) {
+      res.body?.cancel?.();
+      continue;
+    }
+    const blob = await res.blob();
+    if (blob.size > MAX_CLIP_BYTES) continue;
+    return loadMediaItem(blob.type.startsWith('video/') ? blob : new Blob([blob], { type: 'video/mp4' }));
+  }
+  return null;
+}
+
+/**
+ * Finds one stock background per keyword. kind 'video' looks for a clip first, then a photo.
+ * A keyword with nothing usable gets null, which the renderer draws as an animated background.
+ */
+export async function fetchPexelsMedia(apiKey, keywords, orientation, { kind = 'photo', onWarn, onProgress } = {}) {
   const cache = new Map();
   const out = [];
+  let done = 0;
   for (const kw of keywords) {
     if (!cache.has(kw)) {
       cache.set(
         kw,
         (async () => {
-          const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(kw)}&orientation=${orientation}&per_page=5`, {
-            headers: { Authorization: apiKey },
-          });
-          if (res.status === 401 || res.status === 403) throw new UserError('Pexels rejected your API key. Check it in Settings.');
-          if (!res.ok) throw new Error('Pexels HTTP ' + res.status);
-          const json = await res.json();
-          const photo = json.photos?.[0];
-          if (!photo) return null;
-          const img = await fetch(photo.src.large2x || photo.src.large);
-          if (!img.ok) throw new Error('image HTTP ' + img.status);
-          return loadMediaItem(await img.blob());
-        })().catch((err) => {
-          if (err instanceof UserError) throw err;
-          onWarn?.(`No stock photo for "${kw}" (${err.message}). Using an animated background for that scene.`);
-          return null;
-        })
+          if (kind === 'video') {
+            const clip = await pexelsClip(apiKey, kw, orientation);
+            if (clip) return clip;
+            const photo = await pexelsPhoto(apiKey, kw, orientation);
+            if (photo) onWarn?.(`No stock clip for "${kw}", so a photo was used for that scene.`);
+            return photo;
+          }
+          return pexelsPhoto(apiKey, kw, orientation);
+        })()
+          .then((item) => {
+            if (!item) onWarn?.(`No stock ${kind === 'video' ? 'clip or photo' : 'photo'} for "${kw}". Using an animated background for that scene.`);
+            return item;
+          })
+          .catch((err) => {
+            if (err instanceof UserError) throw err;
+            onWarn?.(`No stock ${kind === 'video' ? 'clip' : 'photo'} for "${kw}" (${err.message}). Using an animated background for that scene.`);
+            return null;
+          })
       );
     }
     out.push(await cache.get(kw));
+    onProgress?.({ stage: 'stock', done: ++done, total: keywords.length });
   }
   return out;
+}
+
+/** Kept for existing callers: photo backgrounds only. */
+export function fetchPexelsImages(apiKey, keywords, orientation, onWarn) {
+  return fetchPexelsMedia(apiKey, keywords, orientation, { kind: 'photo', onWarn });
 }

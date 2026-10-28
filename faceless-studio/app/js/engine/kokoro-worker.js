@@ -1,4 +1,11 @@
+import './polyfills.js';
 import { KokoroTTS, env } from '../../vendor/kokoro/kokoro.mjs';
+
+// Any error the voice library doesn't handle itself is sent to the page, so a video fails with a
+// message instead of waiting forever.
+const reportFatal = (message) => postMessage({ type: 'fatal', message: String(message || 'Unknown voice engine error') });
+addEventListener('error', (e) => reportFatal(e.message));
+addEventListener('unhandledrejection', (e) => reportFatal(e.reason?.message || e.reason));
 
 env.backends.onnx.wasm.wasmPaths = new URL('../../vendor/kokoro/', import.meta.url).href;
 env.backends.onnx.wasm.numThreads = 1;

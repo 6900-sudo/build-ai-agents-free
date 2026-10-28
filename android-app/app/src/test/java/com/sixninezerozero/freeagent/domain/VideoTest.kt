@@ -68,4 +68,42 @@ class VideoTest {
         assertTrue(prompt.contains("MP4"))
         assertFalse(VideoScript.fromReply("Tap Make video below this message to create the MP4.").contains("Tap"))
     }
+
+    @Test
+    fun `stock background settings reach the engine, and fall back without a Pexels key`() {
+        val withKey = JSONObject(
+            VideoRequest("Hello there friends", background = VideoBackground.CLIPS, pexelsKey = "abc")
+                .toJson(listOf("radiator", "living room")),
+        )
+        assertEquals("clips", withKey.getString("background"))
+        assertEquals("abc", withKey.getString("pexelsKey"))
+        assertEquals("living room", withKey.getJSONArray("queries").getString(1))
+        assertFalse(withKey.has("stockBase"))
+
+        val noKey = JSONObject(VideoRequest("Hello there friends", background = VideoBackground.PHOTOS).toJson())
+        assertEquals("animated", noKey.getString("background"))
+    }
+
+    @Test
+    fun `AI search words are parsed defensively`() {
+        assertEquals(listOf("radiator valve", "cosy living room"), VideoQueries.parse("[\"radiator valve\", \"cosy living room\"]", 2))
+        assertEquals(
+            listOf("boiler", "plumber at work"),
+            VideoQueries.parse("Sure! Here you go:\n```json\n[\"boiler\", \"plumber at work!\"]\n```", 2),
+        )
+        assertNull(VideoQueries.parse("[\"only one\"]", 2))
+        assertNull(VideoQueries.parse("no json here", 1))
+        assertNull(VideoQueries.parse("[\"ok\", \"\"]", 2))
+        assertEquals("1. First\n2. Second", VideoQueries.prompt(listOf("First", "Second")))
+    }
+
+    @Test
+    fun `Pexels keys are cleaned and other services' keys refused`() {
+        val key = "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78St90Uv12Wx34Yz56Ab12"
+        assertNull(ApiKeyValidator.errorForPexels(""))
+        assertNull(ApiKeyValidator.errorForPexels("  \u200B$key\n"))
+        assertEquals(key, ApiKeyValidator.normalise("Pexels key: $key"))
+        assertTrue(ApiKeyValidator.errorForPexels("gsk_" + "A1b2C3d4".repeat(6) + "Z9y8")!!.contains("Groq"))
+        assertTrue(ApiKeyValidator.errorForPexels("short")!!.contains("short"))
+    }
 }

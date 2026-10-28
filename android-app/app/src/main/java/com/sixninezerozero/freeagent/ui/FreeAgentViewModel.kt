@@ -22,6 +22,7 @@ import com.sixninezerozero.freeagent.domain.ConversationPolicy
 import com.sixninezerozero.freeagent.domain.KeySetup
 import com.sixninezerozero.freeagent.domain.KeySetupResult
 import com.sixninezerozero.freeagent.domain.MessageRole
+import com.sixninezerozero.freeagent.domain.VideoBackground
 import com.sixninezerozero.freeagent.domain.VideoMood
 import com.sixninezerozero.freeagent.domain.VideoRequest
 import com.sixninezerozero.freeagent.domain.VideoScript
@@ -98,12 +99,18 @@ class FreeAgentViewModel(
         }
 
         _state.update {
-            it.copy(isCheckingKeys = true, errorMessage = null, groqKeyError = null, geminiKeyError = null)
+            it.copy(
+                isCheckingKeys = true,
+                errorMessage = null,
+                groqKeyError = null,
+                geminiKeyError = null,
+                pexelsKeyError = null,
+            )
         }
 
         viewModelScope.launch {
             val result = try {
-                keySetup.prepare(settings.groqApiKey, settings.geminiApiKey)
+                keySetup.prepare(settings.groqApiKey, settings.geminiApiKey, settings.pexelsApiKey)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -120,6 +127,7 @@ class FreeAgentViewModel(
                         isCheckingKeys = false,
                         groqKeyError = result.groqError,
                         geminiKeyError = result.geminiError,
+                        pexelsKeyError = result.pexelsError,
                         errorMessage = result.generalError,
                     )
                 }
@@ -129,6 +137,7 @@ class FreeAgentViewModel(
             val cleaned = settings.copy(
                 groqApiKey = result.groqKey,
                 geminiApiKey = result.geminiKey,
+                pexelsApiKey = result.pexelsKey,
                 systemPrompt = systemPrompt,
             )
             runCatching { repository.saveSettings(cleaned) }
@@ -163,6 +172,10 @@ class FreeAgentViewModel(
                 AiProvider.GEMINI -> it.copy(geminiKeyError = null, errorMessage = null)
             }
         }
+    }
+
+    fun pexelsKeyEdited() {
+        _state.update { it.copy(pexelsKeyError = null, errorMessage = null) }
     }
 
     fun dismissSetupNotice() {
@@ -268,6 +281,10 @@ class FreeAgentViewModel(
         _state.update { it.copy(video = it.video.copy(voice = voice)) }
     }
 
+    fun setVideoBackground(background: VideoBackground) {
+        _state.update { it.copy(video = it.video.copy(background = background)) }
+    }
+
     fun setVideoMood(mood: VideoMood) {
         _state.update { it.copy(video = it.video.copy(mood = mood)) }
     }
@@ -283,9 +300,18 @@ class FreeAgentViewModel(
             it.copy(video = it.video.copy(isMaking = true, error = null, result = null, progress = null))
         }
         viewModelScope.launch {
-            val request = VideoRequest(script = video.script.trim(), voice = video.voice, mood = video.mood)
+            val request = VideoRequest(
+                script = video.script.trim(),
+                voice = video.voice,
+                mood = video.mood,
+                background = video.background,
+                pexelsKey = _state.value.settings.pexelsApiKey,
+            )
             try {
-                val outcome = videoService.makeAndSave(request) { progress ->
+                val outcome = videoService.makeAndSave(
+                    request,
+                    searchesFor = { scenes -> coordinator.visualQueries(_state.value.settings, scenes) },
+                ) { progress ->
                     _state.update { it.copy(video = it.video.copy(progress = progress)) }
                 }
                 _state.update {

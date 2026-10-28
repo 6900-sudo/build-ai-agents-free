@@ -3,13 +3,15 @@
 import { renderProject } from './js/engine/pipeline.js';
 import { toSocialMp4 } from './js/engine/convert.js';
 import { setModelHost } from './js/engine/voice.js';
+import { setStockBase } from './js/engine/backgrounds.js';
+import { parseScript } from './js/engine/script.js';
 
 const CHUNK_BYTES = 256 * 1024;
 
 const native = window.AndroidVideo || {
   // Stand-in used when the page is opened in a normal browser for testing.
   onProgress: (stage, done, total) => console.log('progress', stage, done, total),
-  onWarning: (text) => console.log('warning', text),
+  onWarning: (text) => (window.__warnings = [...(window.__warnings || []), text]),
   onStart: (size, ext, meta) => (window.__result = { size, ext, meta: JSON.parse(meta), chunks: [] }),
   onChunk: (b64) => window.__result.chunks.push(b64),
   onDone: () => (window.__done = true),
@@ -21,13 +23,14 @@ export function projectFrom(opts) {
   const voiceId = opts.voiceId || 'bm_george';
   const mood = opts.mood || 'calm';
   return {
-    script: String(opts.script || ''),
+    script: sceneScript(String(opts.script || ''), opts.background),
     template: opts.template || 'story',
     aspect: '9:16',
     quality: opts.quality === '720' ? '720' : '1080',
     fps: 30,
     captionStyle: opts.captionStyle || 'bold-pop',
-    background: { type: 'procedural', style: 'mix' },
+    background: backgroundFrom(opts),
+    keys: { pexels: String(opts.pexelsKey || '') },
     dim: 0.28,
     progressBar: false,
     voice: voiceId === 'none' ? { type: 'none', wpm: 160 } : { type: 'kokoro', voiceId, speed: 1 },
@@ -35,6 +38,44 @@ export function projectFrom(opts) {
     brand: { primary: '#1d4ed8', accent: '#facc15', textColor: '#ffffff', handle: '', cta: '', watermark: 'off' },
   };
 }
+
+/**
+ * With stock footage, each sentence becomes its own scene so the picture changes every few
+ * seconds (one search and clip per sentence). Numbered lists are left alone.
+ */
+export function sceneScript(script, background) {
+  if (background !== 'photos' && background !== 'clips') return script;
+  if (/^\s*\d{1,3}[.)]\s/m.test(script)) return script;
+  return script
+    .split(/\n\s*\n/)
+    .map((para) => para.replace(/([.!?…]["”’)]?)\s+(?=["“‘(]?[A-Z0-9])/g, '$1\n\n'))
+    .join('\n\n');
+}
+
+// 'animated' (default), 'photos' or 'clips'. Real footage needs a Pexels key; without one the
+// engine keeps the animated look.
+function backgroundFrom(opts) {
+  const kind = opts.background === 'clips' ? 'video' : opts.background === 'photos' ? 'photo' : null;
+  if (!kind || !opts.pexelsKey) return { type: 'procedural', style: 'mix' };
+  return { type: 'pexels', kind, style: 'mix', queries: Array.isArray(opts.queries) ? opts.queries.map(String) : [] };
+}
+
+/**
+ * Returns the video's items (title first, then scenes) as the engine will split them, so the app
+ * can choose a stock-footage search for each one. Called synchronously by Kotlin.
+ */
+window.planScenes = (json) => {
+  try {
+    const opts = JSON.parse(json);
+    const parsed = parseScript(sceneScript(String(opts.script || ''), opts.background), { template: opts.template || 'story' });
+    const items = [];
+    if (parsed.title) items.push(parsed.title);
+    for (const scene of parsed.scenes) items.push(scene.text);
+    return JSON.stringify({ items });
+  } catch (err) {
+    return JSON.stringify({ error: String(err?.message || err) });
+  }
+};
 
 function report(p) {
   const done = Number.isFinite(p.done) ? p.done : Number.isFinite(p.loaded) ? p.loaded : -1;
@@ -59,6 +100,7 @@ window.makeVideo = async (json) => {
   try {
     const opts = JSON.parse(json);
     if (opts.modelHost) setModelHost(opts.modelHost);
+    setStockBase(opts.stockBase || '');
     const project = projectFrom(opts);
     if (!project.script.trim()) throw new Error('The script is empty.');
 
