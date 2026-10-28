@@ -122,7 +122,7 @@ jobs:
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
           working-directory: android-app
           # One line so the videos and log are collected even when a test fails.
-          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace; status=$?; mkdir -p build/evidence; adb logcat -d -s VideoTest:I VideoEngine:W > build/evidence/video-test-log.txt; adb pull "/sdcard/Movies/Free AI Agent" build/evidence/ || true; exit $status
+          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace; status=$?; mkdir -p build/evidence; adb logcat -d -s VideoTest:I VideoEngine:W AndroidRuntime:E DEBUG:F libc:F chromium:E cr_AwContents:W ActivityManager:W > build/evidence/video-test-log.txt; adb pull "/sdcard/Movies/Free AI Agent" build/evidence/ || true; exit $status
 
       - name: Upload device test report
         if: always()
