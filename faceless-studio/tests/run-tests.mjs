@@ -409,6 +409,41 @@ test('Quality', 'No awkward silent gaps between scenes', 'Rendered a voiced vide
   return `No internal silence over 0.6 s. Loudness: peak ${vol.max} dB, average ${vol.mean} dB.`;
 });
 
+test('Quality', 'Video-clip backgrounds render fast and match', 'Made the same video over two stock-style clips twice: reading each clip once in order (new) and seeking a video player for every frame (old).', async () => {
+  // Clips with a long gap between keyframes, like real stock footage (5 s each, one keyframe every 5 s).
+  const FIX = path.join(HERE, 'fixtures');
+  const clips = [['clip-a.mp4', 'testsrc2=size=720x1280:rate=30'], ['clip-b.mp4', 'mandelbrot=size=720x1280:rate=30']];
+  for (const [name, src] of clips) {
+    ff(['-v', 'error', '-y', '-f', 'lavfi', '-i', src, '-t', '5', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-g', '150', '-preset', 'veryfast', '-crf', '23', path.join(FIX, name)]);
+  }
+  const { context, page } = await enginePage();
+  try {
+    // The middle scene lasts about 9 s, longer than the 5 s clip, so the clip has to loop.
+    const project = P({
+      background: { type: 'media' }, music: { type: 'none' }, progressBar: false,
+      script: 'First scene is short. Second scene is a much longer sentence that keeps on talking for quite a while, so the clip has to loop right back to the start. Third scene ends it.',
+    });
+    const run = (decoding, name) => page.evaluate(([p, s, n]) => window.h.render(p, s, { name: n }),
+      [project, { mediaUrls: clips.map(([n]) => '/__test/' + n), clipDecoding: decoding }, name]);
+    const fast = await run(true, 'clips-decoded');
+    const slow = await run(false, 'clips-seeked');
+    check(fast.stats.clipFrames > 0, 'the new clip reader was not used (this browser may not decode H.264 with WebCodecs)');
+    check(!slow.stats.clipFrames, 'the comparison run still used the new reader');
+    const speedup = slow.renderMs / fast.renderMs;
+    check(speedup >= 3, `only ${speedup.toFixed(1)}x faster (${fast.renderMs} ms vs ${slow.renderMs} ms)`);
+    // Same pictures: compare frames early, mid-loop, after the loop and near the end.
+    const a = path.join(SAMPLES, fast.file), b = path.join(SAMPLES, slow.file);
+    const times = [0.5, 4.0, 8.5, Math.max(0.5, fast.duration - 0.5)];
+    const scores = times.map((t, i) => psnr(frameAt(a, t, path.join(SAMPLES, `clips-new-${i}.png`)), frameAt(b, t, path.join(SAMPLES, `clips-old-${i}.png`))));
+    check(scores.every((v) => v >= 30), 'frames differ between the two methods: PSNR ' + scores.map((v) => v.toFixed(1)).join(', ') + ' dB');
+    return `New method ${(fast.renderMs / 1000).toFixed(1)} s vs old ${(slow.renderMs / 1000).toFixed(1)} s (${speedup.toFixed(1)}x faster) for a ${fast.duration.toFixed(1)} s video; ` +
+      `frames match (PSNR ${Math.min(...scores).toFixed(1)} dB or better), including after a clip loops.`;
+  } finally {
+    await context.close();
+    for (const [name] of clips) fs.rmSync(path.join(FIX, name), { force: true });
+  }
+});
+
 test('Quality', 'Tricky scripts work (emoji, other languages, punctuation, long links)', 'Fed in 10 awkward scripts plus a 3,000+ word script.', async () => {
   const { page } = await enginePage();
   const lines = [];

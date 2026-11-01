@@ -5,11 +5,14 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
 cd "$WORK"
 npm init -y >/dev/null
-npm i --silent mp4-muxer@5.2.2 webm-muxer@5.1.4 fflate@0.8.2 kokoro-js@1.2.1 esbuild@0.28.2 \
+npm i --silent mp4-muxer@5.2.2 webm-muxer@5.1.4 mp4box@2.4.1 fflate@0.8.2 kokoro-js@1.2.1 esbuild@0.28.2 \
   @ffmpeg/ffmpeg@0.12.15 @ffmpeg/core@0.12.10 \
   @fontsource/anton@5 @fontsource/montserrat@5 @fontsource/bebas-neue@5 @fontsource/poppins@5 @fontsource/playfair-display@5
 printf 'export { KokoroTTS } from "kokoro-js";\nexport { env } from "@huggingface/transformers";\n' > kentry.js
 npx esbuild kentry.js --bundle --format=esm --platform=browser --minify --outfile=kokoro.mjs --log-level=warning
+# Only the parts of mp4box the clip reader needs (reading the frames out of stock MP4 clips).
+printf 'export { createFile, DataStream, MP4BoxBuffer, Endianness } from "mp4box";\n' > mentry.js
+npx esbuild mentry.js --bundle --format=esm --platform=browser --minify --outfile=mp4box.mjs --log-level=warning
 # Let the app choose where voice files are downloaded from (self-hosting support).
 node -e '
 const fs=require("fs");let s=fs.readFileSync("kokoro.mjs","utf8");
@@ -21,6 +24,7 @@ A="$HERE/app"
 mkdir -p "$A/vendor/ffmpeg" "$A/vendor/ffmpeg-core" "$A/vendor/kokoro" "$A/fonts"
 cp node_modules/mp4-muxer/build/mp4-muxer.mjs node_modules/webm-muxer/build/webm-muxer.mjs "$A/vendor/"
 cp node_modules/fflate/esm/browser.js "$A/vendor/fflate.mjs"
+cp mp4box.mjs "$A/vendor/mp4box.mjs"
 cp node_modules/@ffmpeg/ffmpeg/dist/esm/*.js "$A/vendor/ffmpeg/"
 cp node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.* "$A/vendor/ffmpeg-core/"
 cp kokoro.mjs "$A/vendor/kokoro/kokoro.mjs"

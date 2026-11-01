@@ -1,4 +1,11 @@
 import { mulberry32, rgba, shade, clamp, UserError } from './util.js';
+import { ClipReader } from './clipreader.js';
+
+// Tests can switch the fast clip reader off to compare against the old <video> seeking.
+let clipDecoding = true;
+export function setClipDecoding(enabled) {
+  clipDecoding = !!enabled;
+}
 
 export const BG_STYLES = {
   aurora: 'Aurora glow',
@@ -171,19 +178,38 @@ export function drawCover(ctx, W, H, source, sw, sh, progress, seed) {
   ctx.drawImage(source, x, y, dw, dh);
 }
 
+async function videoElement(blob) {
+  const el = document.createElement('video');
+  el.muted = true;
+  el.playsInline = true;
+  el.preload = 'auto';
+  el.src = URL.createObjectURL(blob);
+  await new Promise((res, rej) => {
+    el.onloadeddata = res;
+    el.onerror = () => rej(new UserError('One of your background videos could not be opened. Try MP4 (H.264).'));
+  });
+  return el;
+}
+
 export async function loadMediaItem(blob) {
   if (blob.type.startsWith('video/')) {
-    const url = URL.createObjectURL(blob);
-    const el = document.createElement('video');
-    el.muted = true;
-    el.playsInline = true;
-    el.preload = 'auto';
-    el.src = url;
-    await new Promise((res, rej) => {
-      el.onloadeddata = res;
-      el.onerror = () => rej(new UserError('One of your background videos could not be opened. Try MP4 (H.264).'));
-    });
-    return { kind: 'video', el, w: el.videoWidth, h: el.videoHeight, duration: el.duration || 1 };
+    // When this browser can decode the clip itself, the renderer reads its frames in order
+    // (much faster than seeking a <video> player, and no player is needed at all).
+    if (clipDecoding) {
+      try {
+        const bytes = await blob.arrayBuffer();
+        const probe = await ClipReader.open(bytes);
+        if (probe) {
+          const item = { kind: 'video', el: null, blob, w: probe.w, h: probe.h, duration: probe.duration || 1, clipBytes: bytes };
+          probe.close();
+          return item;
+        }
+      } catch {
+        // unusual file: use the <video> player below
+      }
+    }
+    const el = await videoElement(blob);
+    return { kind: 'video', el, blob, w: el.videoWidth, h: el.videoHeight, duration: el.duration || 1, clipBytes: null };
   }
   try {
     const bmp = await createImageBitmap(blob);
@@ -193,7 +219,12 @@ export async function loadMediaItem(blob) {
   }
 }
 
+export function openClipReader(item) {
+  return item.clipBytes ? ClipReader.open(item.clipBytes) : Promise.resolve(null);
+}
+
 export async function seekVideo(item, time) {
+  if (!item.el) item.el = await videoElement(item.blob); // the fast reader failed part-way
   const el = item.el;
   const target = item.duration > 0 ? time % item.duration : 0;
   if (Math.abs(el.currentTime - target) < 0.001 && el.readyState >= 2) return;
@@ -259,7 +290,11 @@ async function pexelsClip(apiKey, kw, orientation) {
     }
     const blob = await res.blob();
     if (blob.size > MAX_CLIP_BYTES) continue;
-    return loadMediaItem(blob.type.startsWith('video/') ? blob : new Blob([blob], { type: 'video/mp4' }));
+    try {
+      return await loadMediaItem(blob.type.startsWith('video/') ? blob : new Blob([blob], { type: 'video/mp4' }));
+    } catch {
+      // This device can't open that clip; try the next one (or a photo).
+    }
   }
   return null;
 }

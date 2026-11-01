@@ -1,4 +1,4 @@
-import { drawProcedural, drawCover, seekVideo } from './backgrounds.js';
+import { drawProcedural, drawCover, seekVideo, openClipReader } from './backgrounds.js';
 import { drawCaption, buildChunks, fitText, fontString, safeZone } from './captions.js';
 import { itemAt } from './timeline.js';
 import { clamp, easeOutBack, rgba, shade } from './util.js';
@@ -20,6 +20,8 @@ export class Renderer {
     this.p = project;
     this.tl = timeline;
     this.media = media;
+    this.readers = new Map(); // scene index -> ClipReader (or null when it can't decode)
+    this.frames = new Map(); // scene index -> current decoded frame
     this.logo = logo;
     this.seed = seed;
     this.stats = { frames: 0, boxes: 0, overflows: 0, overflowSamples: [] };
@@ -35,20 +37,57 @@ export class Renderer {
 
   async prepare(t) {
     const idx = itemAt(this.tl, t);
+    // Scenes that are over no longer need their clip decoder.
+    for (const [i, r] of this.readers) {
+      if (i < idx - 1) {
+        r?.close();
+        this.readers.delete(i);
+        this.frames.delete(i);
+      }
+    }
     for (const i of [idx - 1, idx]) {
       if (i < 0) continue;
       const m = this.mediaFor(i);
-      if (m?.kind === 'video') await seekVideo(m, Math.max(0, t - this.tl.items[i].start));
+      if (m?.kind !== 'video') continue;
+      const local = Math.max(0, t - this.tl.items[i].start);
+      const reader = await this.readerFor(i, m);
+      if (reader) {
+        try {
+          this.frames.set(i, await reader.frameAt(local));
+          this.stats.clipFrames = (this.stats.clipFrames || 0) + 1;
+          continue;
+        } catch {
+          // Decoding failed part-way: carry on with the slower <video> seeking.
+          reader.close();
+          this.readers.set(i, null);
+          this.frames.delete(i);
+        }
+      }
+      await seekVideo(m, local);
     }
+  }
+
+  /** One clip reader per scene, so two scenes using the same clip don't fight over it. */
+  async readerFor(i, m) {
+    if (!this.readers.has(i)) this.readers.set(i, await openClipReader(m).catch(() => null));
+    return this.readers.get(i);
+  }
+
+  /** Releases video decoders (call when the render ends). */
+  close() {
+    for (const r of this.readers.values()) r?.close();
+    this.readers.clear();
+    this.frames.clear();
   }
 
   drawBackground(ctx, i, t) {
     const it = this.tl.items[i];
     const local = Math.max(0, t - it.start);
     const m = this.mediaFor(i);
-    if (m) {
+    const source = m ? this.frames.get(i) || m.el : null;
+    if (source) {
       const span = Math.max(0.5, it.visualEnd - it.start + XFADE);
-      drawCover(ctx, this.W, this.H, m.el, m.w, m.h, local / span, this.seed + i * 131);
+      drawCover(ctx, this.W, this.H, source, m.w, m.h, local / span, this.seed + i * 131);
     } else {
       drawProcedural(ctx, this.W, this.H, this.p.background?.style || 'aurora', i, local + i * 3.1, this.p.brand || {}, this.seed);
     }

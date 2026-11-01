@@ -78,7 +78,12 @@ export async function renderProject(project, assets, { canvas, onProgress, signa
   canvas.width = W;
   canvas.height = H;
   const fps = project.fps || 30;
-  const result = await encodeVideo({ canvas, renderer: prep.renderer, fps, duration: prep.timeline.duration, audioBuffer: prep.audioBuffer, onProgress, signal, forceWebm });
+  let result;
+  try {
+    result = await encodeVideo({ canvas, renderer: prep.renderer, fps, duration: prep.timeline.duration, audioBuffer: prep.audioBuffer, onProgress, signal, forceWebm });
+  } finally {
+    prep.renderer.close();
+  }
   return {
     ...result,
     srt: buildSrt(prep.timeline),
