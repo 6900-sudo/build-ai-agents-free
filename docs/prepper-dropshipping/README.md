@@ -2,7 +2,7 @@
 
 This file collects everything produced for the prepper / emergency-preparedness dropshipping project (brand: **B'READY**). It pulls together the Claude sessions, published artifacts, repos and supplier email threads from July to September 2026.
 
-_Last compiled: 27 Oct 2026 (brand renamed from Ready Ground → GearUp → B'READY)_
+_Last compiled: 6 Nov 2026 (B'READY logo finalized: bee photo as apostrophe)_
 
 ---
 
@@ -10,7 +10,7 @@ _Last compiled: 27 Oct 2026 (brand renamed from Ready Ground → GearUp → B'RE
 
 | | |
 |---|---|
-| **Business** | B'READY: a UK-based preparedness content site plus dropship store, selling worldwide (the US is the biggest market). Positioning: "From disasters to camping and all in-between." Symbol: bee hovering above the name. |
+| **Business** | B'READY: a UK-based preparedness content site plus dropship store, selling worldwide (the US is the biggest market). Positioning: "From disasters to camping and all in-between." **Official logo:** honey bee photo as the apostrophe — B'READY with the bee integrated into the wordmark. |
 | **Categories** | Water storage, food storage, first aid, off-grid power, bug-out bags, home security |
 | **Recommended start** | Direction A, "Narrow & Safe": one non-restricted sub-niche (water filtration or get-home bag), pure dropship, standard payment processor, growth led by SEO and content |
 | **Content engine** | Blackout Ready: a free 72-hour checklist as the lead magnet, a £5–9 paid guide, and 5 faceless video scripts |
@@ -20,6 +20,12 @@ _Last compiled: 27 Oct 2026 (brand renamed from Ready Ground → GearUp → B'RE
 ---
 
 ## 2. Where everything lives
+
+### Brand & Logo
+| Asset | File | Status |
+|---|---|---|
+| **B'READY Logo** (bee photo as apostrophe) | `docs/prepper-dropshipping/breadylogo-bee.png` | Live (222 KB PNG) |
+| **Official wordmark** | B'[bee]READY | Ready to use |
 
 ### Published artifacts (private, claude.ai)
 | Asset | Link | Status |
