@@ -53,6 +53,9 @@ class AppRepository(
         )
     }
 
+    /** Why keys are kept without Keystore protection on this phone, or null when they aren't. */
+    suspend fun keystoreProblem(): String? = withContext(ioDispatcher) { secureStore.keystoreProblem() }
+
     suspend fun clearMessages() = withContext(ioDispatcher) {
         secureStore.remove(KEY_HISTORY)
     }

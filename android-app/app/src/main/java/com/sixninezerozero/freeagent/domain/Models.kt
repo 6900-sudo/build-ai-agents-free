@@ -67,4 +67,6 @@ data class ChatUiState(
     /** Shown in the chat after setup, e.g. "Groq key works." */
     val setupNotice: String? = null,
     val video: VideoUiState = VideoUiState(),
+    /** Set when this phone's Keystore failed and keys are stored in private storage instead. */
+    val keystoreProblem: String? = null,
 )

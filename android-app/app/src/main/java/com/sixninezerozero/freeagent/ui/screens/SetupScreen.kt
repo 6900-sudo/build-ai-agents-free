@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.sixninezerozero.freeagent.BuildConfig
 import com.sixninezerozero.freeagent.R
 import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.ApiKeyValidator
@@ -278,6 +279,12 @@ private fun SettingsForm(
         }
 
         footer()
+
+        Text(
+            text = stringResource(R.string.build_label, BuildConfig.VERSION_NAME, BuildConfig.GIT_SHA),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

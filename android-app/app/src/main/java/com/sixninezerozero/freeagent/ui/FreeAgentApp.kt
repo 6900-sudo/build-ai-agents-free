@@ -49,6 +49,7 @@ fun FreeAgentApp(viewModel: FreeAgentViewModel) {
                     onKeyEdited = viewModel::keyEdited,
                     onPexelsEdited = viewModel::pexelsKeyEdited,
                     onEraseEverything = viewModel::eraseEverything,
+                    keystoreProblem = state.keystoreProblem,
                 )
             }
 

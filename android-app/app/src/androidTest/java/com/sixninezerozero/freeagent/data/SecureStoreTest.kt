@@ -26,6 +26,7 @@ class SecureStoreTest {
     @After
     fun wipe() {
         context.getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("free_ai_agent_private_store", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test
@@ -77,5 +78,27 @@ class SecureStoreTest {
         repository.saveSettings(settings)
 
         assertEquals(settings, repository.loadSettings())
+    }
+
+    /** A phone whose Keystore fails: the key is still saved (in private storage) and read back. */
+    @Test
+    fun brokenKeystoreStillSavesAndLoadsSettings() = runTest {
+        val broken = object : ValueCipher {
+            override fun encrypt(plainText: String): String = throw java.security.KeyStoreException("Failed to generate key")
+            override fun decrypt(payload: String): String = throw java.security.KeyStoreException("Failed to read key")
+            override fun reset() = Unit
+        }
+        val store = SecureStore(
+            PrefsFile(context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)),
+            PrefsFile(context.getSharedPreferences("free_ai_agent_private_store", Context.MODE_PRIVATE)),
+            broken,
+        )
+        val repository = AppRepository(store)
+        val settings = AppSettings(groqApiKey = "gsk_example_key_1234567890", systemPrompt = "Answer briefly.")
+
+        repository.saveSettings(settings)
+
+        assertEquals(settings, repository.loadSettings())
+        assertEquals("KeyStoreException: Failed to generate key", repository.keystoreProblem())
     }
 }

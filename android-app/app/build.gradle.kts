@@ -34,6 +34,12 @@ abstract class SyncStudioAssets : DefaultTask() {
     }
 }
 
+fun gitShortSha(): String =
+    providers.exec {
+        commandLine("git", "rev-parse", "--short=7", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().ifEmpty { "dev" }
+
 val syncStudioAssets = tasks.register<SyncStudioAssets>("syncStudioAssets") {
     engineDir.set(rootProject.layout.projectDirectory.dir("../faceless-studio/app"))
     bridgeDir.set(layout.projectDirectory.dir("src/main/studio"))
@@ -56,6 +62,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
+        // Shown at the bottom of the setup screen, so a screenshot says exactly which build is installed.
+        buildConfigField("String", "GIT_SHA", "\"${gitShortSha()}\"")
 
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

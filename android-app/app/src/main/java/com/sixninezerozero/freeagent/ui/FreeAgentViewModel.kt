@@ -1,6 +1,7 @@
 package com.sixninezerozero.freeagent.ui
 
 import android.content.Context
+import com.sixninezerozero.freeagent.BuildConfig
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -51,11 +52,12 @@ class FreeAgentViewModel(
     init {
         viewModelScope.launch {
             runCatching {
-                repository.loadSettings() to repository.loadMessages()
-            }.onSuccess { (settings, messages) ->
+                Triple(repository.loadSettings(), repository.loadMessages(), repository.keystoreProblem())
+            }.onSuccess { (settings, messages, keystoreProblem) ->
                 _state.update {
                     it.copy(
                         isInitialising = false,
+                        keystoreProblem = keystoreProblem,
                         settings = settings,
                         messages = messages,
                         screen = if (settings.hasAnyKey) AppScreen.Chat else AppScreen.Onboarding,
@@ -140,15 +142,20 @@ class FreeAgentViewModel(
                 pexelsApiKey = result.pexelsKey,
                 systemPrompt = systemPrompt,
             )
-            runCatching { repository.saveSettings(cleaned) }
-                .onSuccess {
+            runCatching { repository.saveSettings(cleaned) to repository.keystoreProblem() }
+                .onSuccess { (_, keystoreProblem) ->
+                    val storageNote = keystoreProblem?.let {
+                        "Your phone's secure key store isn't working ($it), so your keys were saved in " +
+                            "the app's private storage instead. Other apps still can't read them."
+                    }
                     _state.update {
                         it.copy(
                             isCheckingKeys = false,
                             settings = cleaned,
                             screen = AppScreen.Chat,
                             errorMessage = null,
-                            setupNotice = result.notice,
+                            keystoreProblem = keystoreProblem,
+                            setupNotice = listOfNotNull(storageNote, result.notice).joinToString(" ").ifBlank { null },
                         )
                     }
                 }
@@ -156,8 +163,9 @@ class FreeAgentViewModel(
                     _state.update {
                         it.copy(
                             isCheckingKeys = false,
-                            errorMessage = "This phone's secure storage didn't work, so the keys weren't saved. " +
-                                "Restart the phone and try again. (code: ${error::class.simpleName})",
+                            errorMessage = "The keys couldn't be saved on this phone " +
+                                "(${error::class.simpleName}: ${error.message ?: "no details"}). " +
+                                "Send a screenshot of this message. App build ${BuildConfig.GIT_SHA}.",
                         )
                     }
                 }

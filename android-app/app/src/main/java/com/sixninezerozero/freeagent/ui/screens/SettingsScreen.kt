@@ -26,6 +26,7 @@ fun SettingsScreen(
     onKeyEdited: (AiProvider) -> Unit,
     onPexelsEdited: () -> Unit,
     onEraseEverything: () -> Unit,
+    keystoreProblem: String? = null,
 ) {
     var showEraseDialog by remember { mutableStateOf(false) }
 
@@ -43,7 +44,8 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = stringResource(R.string.security_summary),
+                text = keystoreProblem?.let { stringResource(R.string.security_fallback_summary, it) }
+                    ?: stringResource(R.string.security_summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
