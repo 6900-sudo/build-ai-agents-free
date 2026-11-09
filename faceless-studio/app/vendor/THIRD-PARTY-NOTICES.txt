@@ -2,6 +2,7 @@ Third-party components bundled with Faceless Studio
 ===================================================
 
 mp4-muxer 5.2.2, webm-muxer 5.1.4 (MIT) - https://github.com/Vanilagy
+mp4box 2.4.1 (BSD-3-Clause) - https://github.com/gpac/mp4box.js (vendor/mp4box.mjs, only the parts that read MP4 files)
 fflate 0.8.2 (MIT) - https://github.com/101arrowz/fflate
 kokoro-js 1.2.1 (Apache-2.0) - https://github.com/hexgrad/kokoro
 @huggingface/transformers / onnxruntime-web (Apache-2.0) - https://github.com/huggingface/transformers.js

@@ -71,8 +71,30 @@ class KeySetupTest {
         assertNotNull(result.generalError)
     }
 
-    private class FakeChecker(private val answer: KeyCheck) : KeyChecker {
+    @Test
+    fun `Pexels key is checked and a rejected one blocks saving`() = runTest {
+        val pexels = "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78St90Uv12Wx34Yz56Ab12"
+        val ok = KeySetup(FakeChecker(KeyCheck.Works)).prepare(groq, "", " $pexels ")
+        assertTrue(ok.canSave)
+        assertEquals(pexels, ok.pexelsKey)
+        assertTrue(ok.notice!!.contains("Pexels key works"))
+
+        val rejected = KeySetup(FakeChecker(KeyCheck.Works, pexels = KeyCheck.Rejected(null))).prepare(groq, "", pexels)
+        assertFalse(rejected.canSave)
+        assertTrue(rejected.pexelsError!!.contains("pexels.com/api"))
+
+        val offline = KeySetup(FakeChecker(KeyCheck.Works, pexels = KeyCheck.NoConnection)).prepare(groq, "", pexels)
+        assertTrue(offline.canSave)
+        assertTrue(offline.notice!!.contains("no internet"))
+    }
+
+    private class FakeChecker(
+        private val answer: KeyCheck,
+        private val pexels: KeyCheck = KeyCheck.Works,
+    ) : KeyChecker {
         val calls = mutableListOf<Pair<AiProvider, String>>()
+
+        override suspend fun checkPexels(apiKey: String): KeyCheck = pexels
 
         override suspend fun check(provider: AiProvider, apiKey: String): KeyCheck {
             calls += provider to apiKey

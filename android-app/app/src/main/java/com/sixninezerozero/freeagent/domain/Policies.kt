@@ -100,6 +100,19 @@ object ApiKeyValidator {
         }
     }
 
+    /** Pexels keys have no fixed prefix, so only the general shape is checked. */
+    fun errorForPexels(raw: String): String? {
+        val value = normalise(raw)
+        if (value.isEmpty()) return null
+        if (value.length > MAXIMUM_KEY_LENGTH) return "Pexels key is too long. Copy just the key."
+        if (value.any { it.isWhitespace() }) return "Pexels key must not contain spaces. Copy just the key."
+        if (value.any { it.code !in 0x21..0x7E }) return "Pexels key contains characters a key can't have. Copy it again."
+        val kind = kindOf(value)
+        if (kind != KeyKind.UNKNOWN) return "This is a ${kind.label} key. The Pexels box needs a key from pexels.com/api."
+        if (value.length < MINIMUM_KEY_LENGTH) return "Pexels key looks too short. Copy the whole key."
+        return null
+    }
+
     /**
      * Puts each key in the right box when they were pasted the wrong way round.
      * Returns the corrected (groq, gemini) pair.

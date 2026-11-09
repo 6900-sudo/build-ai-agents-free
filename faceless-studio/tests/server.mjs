@@ -6,7 +6,7 @@ import path from 'node:path';
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.png': 'image/png',
-  '.svg': 'image/svg+xml', '.onnx': 'application/octet-stream', '.bin': 'application/octet-stream', '.txt': 'text/plain',
+  '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.onnx': 'application/octet-stream', '.bin': 'application/octet-stream', '.txt': 'text/plain',
 };
 
 export function startServer({ root, port, uploadDir, cors = false, extraRoots = {} }) {

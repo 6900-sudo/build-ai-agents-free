@@ -59,6 +59,13 @@ function getWorker() {
     kokoroWorker = new Worker(new URL('./kokoro-worker.js', import.meta.url), { type: 'module' });
     kokoroWorker.postMessage({ type: 'init', modelHost });
     kokoroWorker.onmessage = (e) => {
+      if (e.data.type === 'fatal') {
+        for (const p of pending.values()) p.reject(new Error(e.data.message));
+        pending.clear();
+        kokoroWorker.terminate();
+        kokoroWorker = null;
+        return;
+      }
       const p = pending.get(e.data.id);
       if (!p) return;
       if (e.data.type === 'progress') return p.onProgress?.(e.data);

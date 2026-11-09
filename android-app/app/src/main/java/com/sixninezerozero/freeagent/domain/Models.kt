@@ -23,6 +23,8 @@ data class ChatMessage(
 data class AppSettings(
     val groqApiKey: String = "",
     val geminiApiKey: String = "",
+    /** Optional, for real stock photos and clips behind videos. */
+    val pexelsApiKey: String = "",
     val fallbackEnabled: Boolean = true,
     val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
 ) {
@@ -61,7 +63,10 @@ data class ChatUiState(
     val isCheckingKeys: Boolean = false,
     val groqKeyError: String? = null,
     val geminiKeyError: String? = null,
+    val pexelsKeyError: String? = null,
     /** Shown in the chat after setup, e.g. "Groq key works." */
     val setupNotice: String? = null,
     val video: VideoUiState = VideoUiState(),
+    /** Set when this phone's Keystore failed and keys are stored in private storage instead. */
+    val keystoreProblem: String? = null,
 )

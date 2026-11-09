@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.sixninezerozero.freeagent.BuildConfig
 import com.sixninezerozero.freeagent.R
 import com.sixninezerozero.freeagent.domain.AiProvider
 import com.sixninezerozero.freeagent.domain.ApiKeyValidator
@@ -50,12 +51,14 @@ import com.sixninezerozero.freeagent.domain.ConversationPolicy
 
 private const val GROQ_KEYS_URL = "https://console.groq.com/keys"
 private const val GEMINI_KEYS_URL = "https://aistudio.google.com/app/apikey"
+private const val PEXELS_KEYS_URL = "https://www.pexels.com/api/"
 
 /** Errors and progress the setup form shows. Errors stay until the user edits the field. */
 data class SetupFeedback(
     val errorMessage: String? = null,
     val groqKeyError: String? = null,
     val geminiKeyError: String? = null,
+    val pexelsKeyError: String? = null,
     val isCheckingKeys: Boolean = false,
 )
 
@@ -67,6 +70,7 @@ fun SetupScreen(
     isOnboarding: Boolean,
     onSave: (AppSettings) -> Unit,
     onKeyEdited: (AiProvider) -> Unit,
+    onPexelsEdited: () -> Unit,
     onBack: (() -> Unit)? = null,
     footer: @Composable ColumnScope.() -> Unit = {},
 ) {
@@ -100,6 +104,7 @@ fun SetupScreen(
             isOnboarding = isOnboarding,
             onSave = onSave,
             onKeyEdited = onKeyEdited,
+            onPexelsEdited = onPexelsEdited,
             footer = footer,
             modifier = Modifier
                 .fillMaxSize()
@@ -115,11 +120,14 @@ private fun SettingsForm(
     isOnboarding: Boolean,
     onSave: (AppSettings) -> Unit,
     onKeyEdited: (AiProvider) -> Unit,
+    onPexelsEdited: () -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var groqKey by remember(initialSettings.groqApiKey) { mutableStateOf(initialSettings.groqApiKey) }
     var geminiKey by remember(initialSettings.geminiApiKey) { mutableStateOf(initialSettings.geminiApiKey) }
+    var pexelsKey by remember(initialSettings.pexelsApiKey) { mutableStateOf(initialSettings.pexelsApiKey) }
+    var showPexelsKey by remember { mutableStateOf(false) }
     var systemPrompt by remember(initialSettings.systemPrompt) { mutableStateOf(initialSettings.systemPrompt) }
     var fallbackEnabled by remember(initialSettings.fallbackEnabled) {
         mutableStateOf(initialSettings.fallbackEnabled)
@@ -175,6 +183,24 @@ private fun SettingsForm(
             Text(stringResource(R.string.get_gemini_key))
         }
 
+        SecretField(
+            value = pexelsKey,
+            onValueChange = {
+                if (it.length <= ApiKeyValidator.MAXIMUM_KEY_LENGTH) pexelsKey = it
+                onPexelsEdited()
+            },
+            label = stringResource(R.string.pexels_key_label),
+            error = feedback.pexelsKeyError,
+            visible = showPexelsKey,
+            onToggleVisibility = { showPexelsKey = !showPexelsKey },
+        )
+        OutlinedButton(
+            onClick = { uriHandler.openUri(PEXELS_KEYS_URL) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.get_pexels_key))
+        }
+
         Row(modifier = Modifier.fillMaxWidth()) {
             Checkbox(
                 checked = fallbackEnabled,
@@ -214,7 +240,7 @@ private fun SettingsForm(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        if (feedback.groqKeyError != null || feedback.geminiKeyError != null) {
+        if (feedback.groqKeyError != null || feedback.geminiKeyError != null || feedback.pexelsKeyError != null) {
             Text(
                 text = stringResource(R.string.key_problem_above),
                 style = MaterialTheme.typography.bodyMedium,
@@ -230,6 +256,7 @@ private fun SettingsForm(
                     AppSettings(
                         groqApiKey = groqKey,
                         geminiApiKey = geminiKey,
+                        pexelsApiKey = pexelsKey,
                         fallbackEnabled = fallbackEnabled,
                         systemPrompt = systemPrompt,
                     ),
@@ -252,6 +279,12 @@ private fun SettingsForm(
         }
 
         footer()
+
+        Text(
+            text = stringResource(R.string.build_label, BuildConfig.VERSION_NAME, BuildConfig.GIT_SHA),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

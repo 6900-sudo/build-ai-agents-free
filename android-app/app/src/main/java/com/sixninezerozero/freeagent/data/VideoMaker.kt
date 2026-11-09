@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
+import android.util.Log
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
@@ -24,10 +25,14 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 private const val BRIDGE_URL = "https://appassets.androidplatform.net/assets/studio/bridge.html"
 private const val READY_TIMEOUT_MS = 30_000L
+
+/** Tests only: requests under this address are passed to [VideoRequest.testStockUpstream]. */
+const val TEST_STOCK_BASE = "https://appassets.androidplatform.net/test-stock"
 
 /** A finished video in the app's cache, before it is saved to the gallery. */
 data class MadeVideo(
@@ -67,17 +72,28 @@ class VideoMaker(context: Context) {
     val isBusy: Boolean
         get() = job != null
 
-    suspend fun make(request: VideoRequest, onProgress: (VideoProgress) -> Unit): MadeVideo {
+    suspend fun make(
+        request: VideoRequest,
+        searchesFor: suspend (List<String>) -> List<String>? = { null },
+        onProgress: (VideoProgress) -> Unit,
+    ): MadeVideo {
         if (job != null) throw VideoMakerException("A video is already being made.")
         val output = File(appContext.cacheDir, "videos").apply { mkdirs() }
             .resolve("video-${System.currentTimeMillis()}.mp4")
-        val current = Job(output, onProgress)
+        val current = Job(output, onProgress, request.testStockUpstream?.trimEnd('/'))
         job = current
         try {
             withContext(Dispatchers.Main) { startWebView(current) }
             withTimeout(READY_TIMEOUT_MS) { current.ready.await() }
+            val queries = if (request.background.needsPexels && request.pexelsKey.isNotBlank()) {
+                onProgress(VideoProgress("plan", null))
+                val scenes = planScenes(request)
+                if (scenes.isNullOrEmpty()) null else runCatching { searchesFor(scenes) }.getOrNull()
+            } else {
+                null
+            }
             withContext(Dispatchers.Main) {
-                webView?.evaluateJavascript("window.makeVideo(${JSONObject.quote(request.toJson())})", null)
+                webView?.evaluateJavascript("window.makeVideo(${JSONObject.quote(request.toJson(queries))})", null)
             }
             return current.result.await()
         } catch (error: Exception) {
@@ -91,6 +107,25 @@ class VideoMaker(context: Context) {
             job = null
             withContext(Dispatchers.Main) { destroyWebView() }
         }
+    }
+
+    /** The scene texts exactly as the engine will split them (title first), or null. */
+    private suspend fun planScenes(request: VideoRequest): List<String>? {
+        val raw = CompletableDeferred<String?>()
+        withContext(Dispatchers.Main) {
+            val view = webView
+            if (view == null) {
+                raw.complete(null)
+            } else {
+                view.evaluateJavascript("window.planScenes(${JSONObject.quote(request.toJson())})") { raw.complete(it) }
+            }
+        }
+        // evaluateJavascript hands back the JS string as a JSON-encoded string literal.
+        val decoded = withTimeoutOrNull(10_000) { raw.await() }?.let { runCatching { org.json.JSONTokener(it).nextValue() as? String }.getOrNull() }
+            ?: return null
+        val json = runCatching { JSONObject(decoded) }.getOrNull() ?: return null
+        val items = json.optJSONArray("items") ?: return null
+        return (0 until items.length()).map { items.optString(it) }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -112,6 +147,10 @@ class VideoMaker(context: Context) {
             webViewClient = EngineClient(loader, current)
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                    // Engine errors and warnings go to the Android log for diagnosis.
+                    if (message.messageLevel() != ConsoleMessage.MessageLevel.LOG) {
+                        Log.w("VideoEngine", "${message.messageLevel()}: ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                    }
                     if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
                         current.lastConsoleError = message.message()
                     }
@@ -132,8 +171,14 @@ class VideoMaker(context: Context) {
         private val loader: WebViewAssetLoader,
         private val current: Job,
     ) : WebViewClient() {
-        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-            loader.shouldInterceptRequest(request.url)
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val upstream = current.stockUpstream
+            val url = request.url.toString()
+            if (upstream != null && url.startsWith("$TEST_STOCK_BASE/")) {
+                return proxy(upstream + url.removePrefix(TEST_STOCK_BASE), request)
+            }
+            return loader.shouldInterceptRequest(request.url)
+        }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
 
@@ -164,7 +209,25 @@ class VideoMaker(context: Context) {
         webView = null
     }
 
-    private class Job(val output: File, val onProgress: (VideoProgress) -> Unit) {
+    /**
+     * Tests only. The engine page is HTTPS, so it may not call the plain-HTTP fake Pexels server
+     * on the test machine directly; the app fetches it and hands the answer back.
+     */
+    private fun proxy(target: String, request: WebResourceRequest): WebResourceResponse {
+        val connection = java.net.URL(target).openConnection() as java.net.HttpURLConnection
+        request.requestHeaders["Authorization"]?.let { connection.setRequestProperty("Authorization", it) }
+        val status = connection.responseCode
+        val body = if (status in 200..299) connection.inputStream else connection.errorStream
+        val type = connection.contentType?.substringBefore(';') ?: "application/octet-stream"
+        val headers = mapOf("Access-Control-Allow-Origin" to "*")
+        return WebResourceResponse(type, null, status, if (status in 200..299) "OK" else "Error", headers, body)
+    }
+
+    private class Job(
+        val output: File,
+        val onProgress: (VideoProgress) -> Unit,
+        val stockUpstream: String? = null,
+    ) {
         val ready = CompletableDeferred<Unit>()
         val result = CompletableDeferred<MadeVideo>()
         val warnings = mutableListOf<String>()

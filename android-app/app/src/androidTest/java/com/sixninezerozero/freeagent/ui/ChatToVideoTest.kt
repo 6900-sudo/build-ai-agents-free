@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.sixninezerozero.freeagent.data.AppRepository
@@ -63,7 +64,11 @@ class ChatToVideoTest {
             override suspend fun generate(apiKey: String, systemPrompt: String, messages: List<ChatMessage>) = "unused"
         }
         val video = object : VideoService {
-            override suspend fun makeAndSave(request: VideoRequest, onProgress: (VideoProgress) -> Unit): VideoOutcome {
+            override suspend fun makeAndSave(
+                request: VideoRequest,
+                searchesFor: suspend (List<String>) -> List<String>?,
+                onProgress: (VideoProgress) -> Unit,
+            ): VideoOutcome {
                 made += request
                 return VideoOutcome("content://test/video", "Movies/Free AI Agent/test.mp4", 12.0, 3.0, emptyList())
             }
@@ -90,7 +95,7 @@ class ChatToVideoTest {
         compose.onAllNodesWithTag("makeVideo").onFirst().performClick()
         compose.onNodeWithTag("videoScript")
             .assertTextContains("Blocked gutters are cheap to fix", substring = true)
-        compose.onNodeWithTag("createMp4").performClick()
+        compose.onNodeWithTag("createMp4").performScrollTo().performClick()
         compose.waitUntil(10_000) { made.isNotEmpty() }
 
         assertEquals(

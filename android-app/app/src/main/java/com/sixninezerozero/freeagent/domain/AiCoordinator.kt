@@ -38,6 +38,30 @@ class AiCoordinator(
         }
     }
 
+    /**
+     * Asks the AI for a stock-footage search per scene. Returns null on any problem, so the
+     * video is still made with the engine's own keywords.
+     */
+    suspend fun visualQueries(settings: AppSettings, scenes: List<String>): List<String>? {
+        if (scenes.isEmpty()) return null
+        val groqKey = ApiKeyValidator.normalise(settings.groqApiKey)
+        val geminiKey = ApiKeyValidator.normalise(settings.geminiApiKey)
+        val attempts = listOfNotNull(
+            groqKey.takeIf(String::isNotBlank)?.let { groqClient to it },
+            geminiKey.takeIf(String::isNotBlank)?.let { geminiClient to it },
+        )
+        val ask = listOf(ChatMessage(role = MessageRole.USER, content = VideoQueries.prompt(scenes)))
+        for ((client, key) in attempts) {
+            val reply = try {
+                client.generate(key, VideoQueries.SYSTEM_PROMPT, ask)
+            } catch (_: ApiFailure) {
+                continue
+            }
+            VideoQueries.parse(reply, scenes.size)?.let { return it }
+        }
+        return null
+    }
+
     private suspend fun generateWith(
         client: AiClient,
         apiKey: String,

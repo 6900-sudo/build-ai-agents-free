@@ -2,10 +2,11 @@
 const E = '/js/engine/';
 
 export async function engine() {
-  const [pipeline, voice, convert, captions, timeline] = await Promise.all([
+  const [pipeline, voice, convert, captions, timeline, backgrounds] = await Promise.all([
     import(E + 'pipeline.js'), import(E + 'voice.js'), import(E + 'convert.js'), import(E + 'captions.js'), import(E + 'timeline.js'),
+    import(E + 'backgrounds.js'),
   ]);
-  return { ...pipeline, ...voice, ...convert, ...captions, ...timeline };
+  return { ...pipeline, ...voice, ...convert, ...captions, ...timeline, ...backgrounds };
 }
 
 export async function solidImage(color, w = 1080, h = 1920, label = '') {
@@ -41,6 +42,7 @@ async function buildAssets(spec = {}) {
   const a = {};
   if (spec.logo) a.logoBlob = await logoBlob();
   if (spec.mediaColors) a.mediaBlobs = await Promise.all(spec.mediaColors.map((c) => solidImage(c)));
+  if (spec.mediaUrls) a.mediaBlobs = await Promise.all(spec.mediaUrls.map(async (u) => (await fetch(u)).blob()));
   return a;
 }
 
@@ -51,6 +53,7 @@ export async function upload(blob, name) {
 
 export async function render(project, spec = {}, { name, convert = false, forceWebm = false } = {}) {
   const eng = await engine();
+  eng.setClipDecoding(spec.clipDecoding !== false);
   if (spec.modelHost) eng.setModelHost(spec.modelHost);
   const canvas = document.createElement('canvas');
   const warnings = [];
