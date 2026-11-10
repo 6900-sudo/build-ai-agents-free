@@ -1,6 +1,6 @@
 import { parseScript, cleanText } from './script.js';
 import { synthesize } from './voice.js';
-import { buildTimeline } from './timeline.js';
+import { buildTimeline, narrationPauses } from './timeline.js';
 import { mixAudio } from './audio.js';
 import { Renderer } from './renderer.js';
 import { encodeVideo } from './encoder.js';
@@ -43,6 +43,7 @@ export async function prepareProject(project, assets = {}, { onProgress, signal,
   const { buffer: audioBuffer, stats: audioStats } = await mixAudio(timeline, { ...project.music, buffer: assets.musicBuffer }, { seed });
 
   let media = null;
+  let altMedia = null;
   const bg = project.background || {};
   if (bg.type === 'media' && assets.mediaBlobs?.length) {
     media = [];
@@ -55,7 +56,15 @@ export async function prepareProject(project, assets = {}, { onProgress, signal,
     // then a single fixed query, then the engine's keyword for that scene.
     const keywords = timeline.items.map((it, i) =>
       String(bg.queries?.[i] || '').trim() || bg.query || it.keyword || parsed.scenes[0]?.keyword || 'abstract');
-    media = await fetchPexelsMedia(project.keys.pexels, keywords, orientation, { kind: bg.kind === 'video' ? 'video' : 'photo', onWarn, onProgress });
+    const extras = timeline.items.map((it) => (it.beats?.length || 1) - 1);
+    media = await fetchPexelsMedia(project.keys.pexels, keywords, orientation, { kind: bg.kind === 'video' ? 'video' : 'photo', extras, onWarn, onProgress });
+    altMedia = media.map((m) => m?.extras || null);
+  }
+
+  // Retention check: long pauses in the narration lose viewers.
+  for (const pause of narrationPauses(timeline)) {
+    const at = `${Math.floor(pause.start / 60)}:${String(Math.floor(pause.start % 60)).padStart(2, '0')}`;
+    onWarn?.(`The voiceover goes quiet for ${pause.duration.toFixed(1)} s at ${at}. Viewers tend to scroll away during pauses, so consider tightening it.`);
   }
 
   let logo = null;
@@ -67,7 +76,7 @@ export async function prepareProject(project, assets = {}, { onProgress, signal,
     }
   }
 
-  const renderer = new Renderer({ W: frameSize(project)[0], H: frameSize(project)[1], project: { ...project, attribution: parsed.attribution }, timeline, media, logo, seed });
+  const renderer = new Renderer({ W: frameSize(project)[0], H: frameSize(project)[1], project: { ...project, attribution: parsed.attribution }, timeline, media, altMedia, logo, seed });
   return { parsed, timeline, audioBuffer, audioStats, renderer, seed };
 }
 

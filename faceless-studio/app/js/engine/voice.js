@@ -45,6 +45,56 @@ export function trimSilence(buffer, threshold = 0.01, padSec = 0.05) {
   return out;
 }
 
+/**
+ * Shortens every pause inside a voice clip to at most `maxPause` seconds (a "jump cut" on
+ * silence), so the narration keeps moving. Splices get a 5 ms crossfade so they don't click.
+ */
+export function tightenPauses(buffer, maxPause = 0.3, threshold = 0.004) {
+  const sr = buffer.sampleRate;
+  const data = buffer.getChannelData(0);
+  const win = Math.max(1, Math.round(sr * 0.02));
+  const cuts = []; // [from, to) sample ranges to remove
+  let quietFrom = -1;
+  for (let i = 0; i <= data.length; i += win) {
+    let loud = false;
+    if (i < data.length) {
+      let sum = 0;
+      const end = Math.min(data.length, i + win);
+      for (let j = i; j < end; j++) sum += data[j] * data[j];
+      loud = Math.sqrt(sum / (end - i)) > threshold;
+    }
+    if (!loud && quietFrom < 0 && i < data.length) quietFrom = i;
+    if ((loud || i >= data.length) && quietFrom >= 0) {
+      const len = Math.min(i, data.length) - quietFrom;
+      const keep = Math.round(maxPause * sr);
+      // Only pauses between words: leading and trailing silence is handled by trimSilence.
+      if (len > keep && quietFrom > 0 && i < data.length) cuts.push([quietFrom + Math.floor(keep / 2), quietFrom + len - Math.ceil(keep / 2)]);
+      quietFrom = -1;
+    }
+  }
+  if (!cuts.length) return buffer;
+  const removed = cuts.reduce((a, [f, t]) => a + (t - f), 0);
+  const out = new AudioBuffer({ length: data.length - removed, numberOfChannels: buffer.numberOfChannels, sampleRate: sr });
+  const fade = Math.round(sr * 0.005);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const src = buffer.getChannelData(c);
+    const dst = new Float32Array(out.length);
+    let s = 0, d = 0;
+    for (const [from, to] of cuts) {
+      dst.set(src.subarray(s, from), d);
+      d += from - s;
+      for (let k = 0; k < fade && d - fade + k >= 0 && to + k < src.length; k++) {
+        const a = k / fade;
+        dst[d - fade + k] = dst[d - fade + k] * (1 - a) + src[to - fade + k] * a;
+      }
+      s = to;
+    }
+    dst.set(src.subarray(s), d);
+    out.copyToChannel(dst, c);
+  }
+  return out;
+}
+
 let kokoroWorker = null;
 let msgId = 0;
 const pending = new Map();
@@ -103,7 +153,7 @@ export async function preloadKokoro(onProgress) {
 
 async function kokoroSpeak(text, voice, speed) {
   const r = await callKokoro({ type: 'speak', text, voice, speed });
-  return trimSilence(bufferFromSamples(r.samples, r.sampleRate));
+  return tightenPauses(trimSilence(bufferFromSamples(r.samples, r.sampleRate)));
 }
 
 async function elevenSpeak(text, { apiKey, voiceId, modelId }) {
