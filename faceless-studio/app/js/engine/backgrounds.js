@@ -14,11 +14,13 @@ export const BG_STYLES = {
   grid: 'Retro grid',
   bokeh: 'Bokeh lights',
   waves: 'Waves',
+  halftone: 'Halftone dots',
+  scanlines: 'Scanlines',
   solid: 'Solid brand colour',
   mix: 'Mix (changes every scene)',
 };
 
-const MIX_ORDER = ['aurora', 'particles', 'gradient', 'bokeh', 'waves', 'grid'];
+const MIX_ORDER = ['aurora', 'particles', 'gradient', 'bokeh', 'waves', 'grid', 'halftone', 'scanlines'];
 
 function palette(brand, seed) {
   const r = mulberry32(seed);
@@ -156,7 +158,58 @@ function drawSolid(ctx, W, H, t, rand, pal, brand) {
   ctx.fillRect(0, 0, W, H);
 }
 
-const DRAW = { aurora: drawAurora, gradient: drawGradient, particles: drawParticles, grid: drawGrid, bokeh: drawBokeh, waves: drawWaves, solid: drawSolid };
+// Halftone: a grid of dots whose size follows two drifting glows.
+function drawHalftone(ctx, W, H, t, rand, pal) {
+  ctx.fillStyle = pal.base;
+  ctx.fillRect(0, 0, W, H);
+  const step = Math.max(14, Math.round(W / 34));
+  const blobs = [0, 1].map((i) => ({ ph: rand() * 6.28, fx: 0.05 + rand() * 0.08, c: pal.colors[i] }));
+  const R = Math.max(W, H) * 0.55;
+  for (let y = step / 2; y < H; y += step) {
+    for (let x = step / 2; x < W; x += step) {
+      let best = 0, color = blobs[0].c;
+      for (const b of blobs) {
+        const bx = W * (0.5 + 0.38 * Math.sin(t * b.fx * 6.28 + b.ph));
+        const by = H * (0.5 + 0.38 * Math.cos(t * b.fx * 5.1 + b.ph * 1.7));
+        const v = 1 - Math.hypot(x - bx, y - by) / R;
+        if (v > best) { best = v; color = b.c; }
+      }
+      if (best <= 0.02) continue;
+      ctx.fillStyle = rgba(color, 0.35 + 0.5 * best);
+      ctx.beginPath();
+      ctx.arc(x, y, (step / 2) * Math.min(1, best * 1.15), 0, 6.283);
+      ctx.fill();
+    }
+  }
+}
+
+// Scanlines: a soft brand glow behind moving horizontal lines and a light film grain.
+function drawScanlines(ctx, W, H, t, rand, pal) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, shade(pal.colors[0], -0.55));
+  g.addColorStop(1, shade(pal.colors[1], -0.65));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  const cy = H * (0.5 + 0.3 * Math.sin(t * 0.35 + rand() * 6.28));
+  const glow = ctx.createRadialGradient(W / 2, cy, 0, W / 2, cy, Math.max(W, H) * 0.6);
+  glow.addColorStop(0, rgba(pal.colors[2], 0.45));
+  glow.addColorStop(1, rgba(pal.colors[2], 0));
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+  const gap = Math.max(4, Math.round(H / 320));
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  const off = Math.floor((t * 40) % (gap * 2));
+  for (let y = -gap * 2 + off; y < H; y += gap * 2) ctx.fillRect(0, y, W, gap);
+  // Grain is seeded per frame time, so the same video always renders the same.
+  const grain = mulberry32((Math.floor(t * 30) * 2654435761) >>> 0);
+  const dot = Math.max(2, Math.round(W / 360));
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = grain() > 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.12)';
+    ctx.fillRect(grain() * W, grain() * H, dot, dot);
+  }
+}
+
+const DRAW = { halftone: drawHalftone, scanlines: drawScanlines, aurora: drawAurora, gradient: drawGradient, particles: drawParticles, grid: drawGrid, bokeh: drawBokeh, waves: drawWaves, solid: drawSolid };
 
 export function drawProcedural(ctx, W, H, style, sceneIndex, tLocal, brand, baseSeed) {
   const s = style === 'mix' ? MIX_ORDER[sceneIndex % MIX_ORDER.length] : style;
@@ -165,15 +218,23 @@ export function drawProcedural(ctx, W, H, style, sceneIndex, tLocal, brand, base
   fn(ctx, W, H, tLocal, mulberry32(seed), palette(brand, seed), brand);
 }
 
-export function drawCover(ctx, W, H, source, sw, sh, progress, seed) {
+/**
+ * Draws a photo or clip frame filling the screen, with a slow zoom and pan (Ken Burns).
+ * shot > 0 re-frames the same picture for a new shot: the zoom direction flips and odd shots
+ * are a tighter "punch-in", so the cut is clearly visible.
+ */
+export function drawCover(ctx, W, H, source, sw, sh, progress, seed, shot = 0) {
   const r = mulberry32(seed);
-  const zoomIn = r() > 0.5;
+  const zoomIn = (r() > 0.5) !== (shot % 2 === 1);
   const p = clamp(progress, 0, 1);
-  const zoom = zoomIn ? 1.05 + 0.13 * p : 1.18 - 0.13 * p;
+  // Later shots punch in (tighter on odd shots) and move the focus left or right of centre.
+  const punch = shot === 0 ? 1 : shot % 2 === 1 ? 1.25 : 1.12;
+  const focus = shot === 0 ? 0 : shot % 2 === 1 ? 0.35 : -0.35;
+  const zoom = (zoomIn ? 1.05 + 0.13 * p : 1.18 - 0.13 * p) * punch;
   const scale = Math.max(W / sw, H / sh) * zoom;
   const dw = sw * scale, dh = sh * scale;
   const dirX = r() * 2 - 1, dirY = r() * 2 - 1;
-  const x = (W - dw) / 2 + dirX * (dw - W) * 0.8 * (p - 0.5);
+  const x = clamp((W - dw) / 2 + (dirX * 0.8 * (p - 0.5) + focus) * (dw - W), W - dw, 0);
   const y = (H - dh) / 2 + dirY * (dh - H) * 0.8 * (p - 0.5);
   ctx.drawImage(source, x, y, dw, dh);
 }
@@ -255,13 +316,27 @@ async function pexelsSearch(apiKey, path) {
   return res.json();
 }
 
-async function pexelsPhoto(apiKey, kw, orientation) {
-  const json = await pexelsSearch(apiKey, `/v1/search?query=${encodeURIComponent(kw)}&orientation=${orientation}&per_page=5`);
-  const photo = json.photos?.[0];
-  if (!photo) return null;
+async function loadPhoto(photo) {
   const img = await fetch(photo.src.large2x || photo.src.large);
   if (!img.ok) throw new Error('image HTTP ' + img.status);
   return loadMediaItem(await img.blob());
+}
+
+/** The top photo for a keyword; `extras` more results (best effort) go in item.extras. */
+async function pexelsPhoto(apiKey, kw, orientation, extras = 0) {
+  const json = await pexelsSearch(apiKey, `/v1/search?query=${encodeURIComponent(kw)}&orientation=${orientation}&per_page=5`);
+  const photos = json.photos || [];
+  if (!photos[0]) return null;
+  const item = await loadPhoto(photos[0]);
+  item.extras = [];
+  for (const photo of photos.slice(1, 1 + extras)) {
+    try {
+      item.extras.push(await loadPhoto(photo));
+    } catch {
+      // A missing extra photo just means that shot re-frames the first one.
+    }
+  }
+  return item;
 }
 
 /** Picks the smallest MP4 that is at least 720 px on its short side (or the largest smaller one). */
@@ -303,9 +378,12 @@ async function pexelsClip(apiKey, kw, orientation) {
  * Finds one stock background per keyword. kind 'video' looks for a clip first, then a photo.
  * A keyword with nothing usable gets null, which the renderer draws as an animated background.
  */
-export async function fetchPexelsMedia(apiKey, keywords, orientation, { kind = 'photo', onWarn, onProgress } = {}) {
+export async function fetchPexelsMedia(apiKey, keywords, orientation, { kind = 'photo', extras = [], onWarn, onProgress } = {}) {
   const cache = new Map();
   const out = [];
+  // Extra photos for long scenes (one per later shot, at most 2), shared when keywords repeat.
+  const wantExtra = new Map();
+  keywords.forEach((kw, i) => wantExtra.set(kw, Math.max(wantExtra.get(kw) || 0, Math.min(2, extras[i] || 0))));
   let done = 0;
   for (const kw of keywords) {
     if (!cache.has(kw)) {
@@ -319,7 +397,7 @@ export async function fetchPexelsMedia(apiKey, keywords, orientation, { kind = '
             if (photo) onWarn?.(`No stock clip for "${kw}", so a photo was used for that scene.`);
             return photo;
           }
-          return pexelsPhoto(apiKey, kw, orientation);
+          return pexelsPhoto(apiKey, kw, orientation, wantExtra.get(kw));
         })()
           .then((item) => {
             if (!item) onWarn?.(`No stock ${kind === 'video' ? 'clip or photo' : 'photo'} for "${kw}". Using an animated background for that scene.`);

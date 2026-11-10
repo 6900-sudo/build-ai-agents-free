@@ -398,12 +398,14 @@ test('Quality', 'Audio: no distortion, music sits under the voice', 'Measured lo
   return `Peak ${(20 * Math.log10(withVoice.peak)).toFixed(1)} dBFS, 0 clipped samples; voice is ${voiceOverMusicDb.toFixed(1)} dB louder than the music under it (music still audible); music-only videos have steady music.`;
 });
 
-test('Quality', 'No awkward silent gaps between scenes', 'Rendered a voiced video without music and looked for gaps longer than 0.6 seconds.', async () => {
+test('Quality', 'No awkward silent gaps between scenes', 'Rendered a voiced video without music, looked for gaps longer than 0.6 seconds, and checked the 0.4 s pause check stays quiet for the free voice.', async () => {
   const { page } = await enginePage();
   const r = await page.evaluate(([p, m]) => window.h.render(p, { modelHost: m }, { name: 'gaps-voice-only' }), [P({ voice: { type: 'kokoro', voiceId: 'af_heart', speed: 1 }, music: { type: 'none' } }), MODEL_HOST]);
   const f = path.join(SAMPLES, r.file);
   const sil = silences(f, '-50dB', 0.6).filter((s) => s.start > 0.5 && s.start < r.duration - 1.5);
   check(!sil.length, 'gaps found at ' + sil.map((s) => `${s.start.toFixed(1)}s (${(s.duration ?? 0).toFixed(2)}s)`).join(', '));
+  const pauseNotes = r.warnings.filter((w) => w.includes('goes quiet'));
+  check(!pauseNotes.length, 'the free voice itself caused pause warnings: ' + pauseNotes.join(' | '));
   const vol = volume(f);
   fs.rmSync(f);
   return `No internal silence over 0.6 s. Loudness: peak ${vol.max} dB, average ${vol.mean} dB.`;
@@ -442,6 +444,77 @@ test('Quality', 'Video-clip backgrounds render fast and match', 'Made the same v
     await context.close();
     for (const [name] of clips) fs.rmSync(path.join(FIX, name), { force: true });
   }
+});
+
+test('Quality', 'The picture changes at least every 5 seconds', 'Made videos with one very long sentence (about 12 s) over an animated background and over a single photo, measured how long each shot stays on screen, and checked every cut is visible.', async () => {
+  const photo = path.join(HERE, 'fixtures', 'shot-photo.jpg');
+  ff(['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1080x1920', '-frames:v', '1', photo]);
+  const { page } = await enginePage();
+  const long = 'This one sentence keeps going on and on about why a pattern interrupt matters, because people scroll away the moment the screen sits still, so the picture has to change before they get bored and leave.';
+  const script = 'Short hook first. ' + long + ' Done!';
+  const lines = [];
+  try {
+    for (const [label, project, spec] of [
+      ['animated', P({ script, music: { type: 'none' }, progressBar: false }), {}],
+      ['photo', P({ script, music: { type: 'none' }, progressBar: false, background: { type: 'media' } }), { mediaUrls: ['/__test/shot-photo.jpg'] }],
+    ]) {
+      const r = await page.evaluate(([p, s, n]) => window.h.render(p, s, { name: n }), [project, spec, `shots-${label}`]);
+      const f = path.join(SAMPLES, r.file);
+      const cuts = r.stats.cuts;
+      const marks = [0, ...cuts, r.duration];
+      let longest = 0;
+      for (let i = 1; i < marks.length; i++) longest = Math.max(longest, marks[i] - marks[i - 1]);
+      check(longest <= 5.05, `${label}: one shot stays on screen for ${longest.toFixed(1)} s`);
+      check(cuts[0] <= 3.05, `${label}: the first change comes at ${cuts[0]?.toFixed(1)} s (want 3 s or sooner)`);
+      // Every cut must be visible: the picture across the cut differs much more than within a shot.
+      let weakest = Infinity;
+      cuts.forEach((c, i) => {
+        const g = (dt, tag) => frameAt(f, Math.max(0, c + dt).toFixed(3), path.join(SAMPLES, `shots-${label}-${i}-${tag}.png`));
+        const within = psnr(g(-0.45, 'a'), g(-0.2, 'b'));
+        const across = psnr(g(-0.2, 'b'), g(0.55, 'c'));
+        weakest = Math.min(weakest, within - across);
+        check(within - across >= 3, `${label}: cut at ${c.toFixed(1)} s is hard to see (within shot ${within.toFixed(1)} dB, across ${across.toFixed(1)} dB)`);
+      });
+      lines.push(`${label}: ${cuts.length} cuts in ${r.duration.toFixed(1)} s, longest shot ${longest.toFixed(1)} s, first change at ${cuts[0].toFixed(1)} s, every cut visible (at least ${weakest.toFixed(1)} dB)`);
+      fs.rmSync(f);
+    }
+  } finally {
+    fs.rmSync(photo, { force: true });
+  }
+  return lines.join('; ') + '.';
+});
+
+test('Quality', 'Long pauses in the voiceover are flagged', 'Checked the pause detector on a voice track with a 1.1 s gap, and on one with normal 0.3 s breaths.', async () => {
+  const { page } = await enginePage();
+  const found = await page.evaluate(async () => {
+    const eng = await window.h.engine();
+    const make = (parts) => {
+      const sr = 48000, buf = new AudioBuffer({ length: sr * 4, sampleRate: sr }), d = buf.getChannelData(0);
+      for (const [a, b] of parts) for (let i = Math.floor(a * sr); i < b * sr; i++) d[i] = 0.3 * Math.sin(i / 7);
+      return { voiceClips: [{ buffer: buf, start: 0.35 }] };
+    };
+    return {
+      gap: eng.narrationPauses(make([[0.2, 1.4], [2.5, 3.5]])),
+      breaths: eng.narrationPauses(make([[0.2, 1.4], [1.7, 2.6], [2.9, 3.5]])),
+    };
+  });
+  check(found.gap.length === 1 && Math.abs(found.gap[0].duration - 1.1) < 0.05 && Math.abs(found.gap[0].start - 1.75) < 0.05, 'gap not found correctly: ' + JSON.stringify(found.gap));
+  check(found.breaths.length === 0, 'normal breaths were flagged: ' + JSON.stringify(found.breaths));
+  return `Found the 1.1 s pause at ${found.gap[0].start.toFixed(2)} s; normal 0.3 s breaths were not flagged. Pauses become a note on the finished video.`;
+});
+
+test('Quality', 'New animated backgrounds (halftone, scanlines) render', 'Rendered a short video with each new background style.', async () => {
+  const { page } = await enginePage();
+  const lines = [];
+  for (const style of ['halftone', 'scanlines']) {
+    const r = await page.evaluate(([p, n]) => window.h.render(p, {}, { name: n }), [P({ background: { type: 'procedural', style }, music: { type: 'none' } }), `bg-${style}`]);
+    const f = path.join(SAMPLES, r.file);
+    const a = frameAt(f, 1.0, path.join(SAMPLES, `bg-${style}-a.png`)), b = frameAt(f, 2.5, path.join(SAMPLES, `bg-${style}-b.png`));
+    const moving = psnr(a, b);
+    check(r.frames > 0 && moving < 40, `${style}: background does not move (PSNR ${moving})`);
+    lines.push(`${style} ${(r.renderMs / 1000).toFixed(1)} s to make`);
+  }
+  return lines.join(', ') + '.';
 });
 
 test('Quality', 'Tricky scripts work (emoji, other languages, punctuation, long links)', 'Fed in 10 awkward scripts plus a 3,000+ word script.', async () => {

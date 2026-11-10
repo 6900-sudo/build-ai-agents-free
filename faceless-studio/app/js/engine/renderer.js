@@ -1,6 +1,6 @@
 import { drawProcedural, drawCover, seekVideo, openClipReader } from './backgrounds.js';
 import { drawCaption, buildChunks, fitText, fontString, safeZone } from './captions.js';
-import { itemAt } from './timeline.js';
+import { itemAt, beatAt } from './timeline.js';
 import { clamp, easeOutBack, rgba, shade } from './util.js';
 
 const XFADE = 0.45;
@@ -14,17 +14,20 @@ export const TEMPLATES = {
 };
 
 export class Renderer {
-  constructor({ W, H, project, timeline, media = null, logo = null, seed = 1 }) {
+  constructor({ W, H, project, timeline, media = null, altMedia = null, logo = null, seed = 1 }) {
     this.W = W;
     this.H = H;
     this.p = project;
     this.tl = timeline;
     this.media = media;
+    this.altMedia = altMedia; // scene index -> extra photos for that scene's later shots
     this.readers = new Map(); // scene index -> ClipReader (or null when it can't decode)
     this.frames = new Map(); // scene index -> current decoded frame
     this.logo = logo;
     this.seed = seed;
     this.stats = { frames: 0, boxes: 0, overflows: 0, overflowSamples: [] };
+    // When each new shot starts (scene changes and cuts inside long scenes).
+    this.stats.cuts = timeline.items.flatMap((it, i) => (it.beats || []).map((b) => b.start).filter((s, k) => i > 0 || k > 0));
     this.chunks = timeline.items.map((it) => (it.kind === 'title' ? [] : buildChunks(it, project.captionStyle)));
     let factNo = 0;
     this.factNumbers = timeline.items.map((it) => (it.kind === 'scene' ? ++factNo : 0));
@@ -83,13 +86,20 @@ export class Renderer {
   drawBackground(ctx, i, t) {
     const it = this.tl.items[i];
     const local = Math.max(0, t - it.start);
-    const m = this.mediaFor(i);
-    const source = m ? this.frames.get(i) || m.el : null;
+    // Long scenes are cut into shots of 5 s or less (see timeline.js). Each new shot shows the
+    // next stock photo for that scene when there is one, otherwise a fresh framing of the same one.
+    const k = beatAt(it, t);
+    const beat = it.beats?.[k] || { start: it.start, end: it.visualEnd };
+    const alt = k > 0 ? this.altMedia?.[i]?.[k - 1] : null;
+    const m = alt || this.mediaFor(i);
+    const source = m ? (alt ? m.el : this.frames.get(i) || m.el) : null;
+    this.stats.shots = Math.max(this.stats.shots || 0, k + 1);
     if (source) {
-      const span = Math.max(0.5, it.visualEnd - it.start + XFADE);
-      drawCover(ctx, this.W, this.H, source, m.w, m.h, local / span, this.seed + i * 131);
+      const last = k === (it.beats?.length || 1) - 1;
+      const span = Math.max(0.5, beat.end - beat.start + (last ? XFADE : 0));
+      drawCover(ctx, this.W, this.H, source, m.w, m.h, (t - beat.start) / span, this.seed + i * 131 + k * 977, alt ? 0 : k);
     } else {
-      drawProcedural(ctx, this.W, this.H, this.p.background?.style || 'aurora', i, local + i * 3.1, this.p.brand || {}, this.seed);
+      drawProcedural(ctx, this.W, this.H, this.p.background?.style || 'aurora', i, local + i * 3.1, this.p.brand || {}, (this.seed + k * 104729) >>> 0);
     }
   }
 
