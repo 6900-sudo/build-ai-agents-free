@@ -1,0 +1,10 @@
+# CodeQL policy for .github/workflows/codeql.yml.
+#
+# Uses CodeQL's standard security query suite (the same one default setup
+# runs). No extra query packs are added.
+name: CodeQL config
+
+# Third-party code copied into the repo. We don't maintain it, so findings
+# there are noise; update the vendored copy instead of patching it here.
+paths-ignore:
+  - faceless-studio/app/vendor/**
