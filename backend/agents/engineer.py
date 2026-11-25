@@ -1,10 +1,11 @@
 """
 Engineer Agent — calls the video generation APIs in sequence:
-script_gen → HeyGen create → HeyGen poll → download.
+Piper narration → HeyGen create (lipsync) → HeyGen poll → download.
 Writes progress to disk so the frontend can show granular status.
 """
 import os
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,7 @@ def run_engineer(state: VideoProductionState) -> dict:
     """
     Run the Engineer pipeline:
     1. Use the Designer's script directly (skip script_gen since Designer already wrote it)
-    2. Submit to HeyGen
+    2. Synthesize narration with Piper (free, local) and submit to HeyGen for lipsync
     3. Poll until complete
     4. Download locally
     """
@@ -41,11 +42,15 @@ def run_engineer(state: VideoProductionState) -> dict:
         # Mock mode: return plausible metadata without calling HeyGen
         return _mock_engineer(state, reports)
 
-    # ── Step 1: Submit to HeyGen ──────────────────────────────────────────────
+    # ── Step 1: Narrate with Piper, then submit to HeyGen for lipsync ────────
     try:
-        update_job_status(job_id, "generating_video", {"step": "submitting_to_heygen"})
-        from backend import heygen
-        video_id = heygen.create_video(script, title)
+        update_job_status(job_id, "generating_video", {"step": "narrating"})
+        from backend import heygen, piper_tts
+        with tempfile.NamedTemporaryFile(suffix=".wav") as wav:
+            piper_tts.synthesize(script, wav.name)
+            update_job_status(job_id, "generating_video", {"step": "submitting_to_heygen"})
+            asset_id = heygen.upload_audio_asset(wav.name)
+        video_id = heygen.create_video(script, title, audio_asset_id=asset_id)
     except Exception as e:
         errors.append({"agent": "engineer", "error": f"HeyGen create failed: {e}", "timestamp": datetime.now(timezone.utc).isoformat()})
         return {"errors": errors, "job_status": "failed"}
