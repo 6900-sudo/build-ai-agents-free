@@ -25,3 +25,6 @@ google-auth-oauthlib
 
 # Image / video rendering (from studio)
 Pillow
+
+# Free local TTS (Piper) -- feeds HeyGen's lipsync via audio_asset_id
+piper-tts

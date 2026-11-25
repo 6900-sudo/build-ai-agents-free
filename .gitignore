@@ -6,6 +6,7 @@ venv/
 
 # Runtime files
 checkpoints.db
+backend/piper_voices/
 jobs/*/video/
 jobs/*/state.json
 yt_token.json

@@ -14,16 +14,33 @@ def _req(method, path, body=None):
     )
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
 
-def create_video(script: str, title: str) -> str:
+def upload_audio_asset(path: str) -> str:
+    """Upload a local audio file (e.g. Piper narration) to HeyGen's asset store.
+    Returns an asset_id usable as create_video(audio_asset_id=...)."""
+    import requests
+    with open(path, "rb") as f:
+        resp = requests.post(
+            f"{API}/v3/assets",
+            headers={"x-api-key": os.environ["HEYGEN_API_KEY"]},
+            files={"file": f},
+            timeout=60,
+        )
+    resp.raise_for_status()
+    return resp.json()["data"]["asset_id"]
+
+def create_video(script: str, title: str, audio_asset_id: str | None = None) -> str:
     body = {
         "type": "avatar",
         "avatar_id": os.environ["HEYGEN_AVATAR_ID"],
-        "voice_id": os.environ["HEYGEN_VOICE_ID"],
-        "script": script,
         "title": title,
         "aspect_ratio": "9:16",
         "resolution": "720p",
     }
+    if audio_asset_id:
+        body["audio_asset_id"] = audio_asset_id  # bypasses HeyGen's own TTS; mutually exclusive with script
+    else:
+        body["voice_id"] = os.environ["HEYGEN_VOICE_ID"]
+        body["script"] = script
     return _req("POST", "/v3/videos", body)["data"]["video_id"]
 
 def wait_for_video(video_id: str, timeout_s: int = 1200, interval_s: int = 20) -> str:

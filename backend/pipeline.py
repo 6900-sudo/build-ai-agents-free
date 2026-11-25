@@ -19,7 +19,9 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 load_dotenv()
 
-import script_gen, heygen, post_youtube, post_instagram, post_tiktok
+import tempfile
+
+import script_gen, heygen, piper_tts, post_youtube, post_instagram, post_tiktok
 
 LEDGER = "posted.json"
 REQUIRED_KEYS = ("title", "script", "caption")
@@ -108,8 +110,11 @@ def main(topic=None):
         sys.exit(f"ERROR: script_gen output missing keys: {missing}")
     print(f"  title: {content['title']}")
 
-    print("[2/4] heygen")
-    vid = heygen.create_video(content["script"], content["title"])
+    print("[2/4] narration + heygen")
+    with tempfile.NamedTemporaryFile(suffix=".wav") as wav:
+        piper_tts.synthesize(content["script"], wav.name)
+        asset_id = heygen.upload_audio_asset(wav.name)
+    vid = heygen.create_video(content["script"], content["title"], audio_asset_id=asset_id)
     url = heygen.wait_for_video(vid)
     local = heygen.download(url, f"out_{vid}.mp4")
 
